@@ -3,6 +3,7 @@
     "framework": null,
     "buildCommand": "echo 'skip build - vercel functions compile automatically'",
     "installCommand": "npm install",
+    "outputDirectory": "public",
     "rewrites": [
         {
             "source": "/(.*)",
