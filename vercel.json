@@ -1,5 +1,8 @@
 {
     "version": 2,
+    "framework": null,
+    "buildCommand": "echo 'skip build - vercel functions compile automatically'",
+    "installCommand": "npm install",
     "rewrites": [
         {
             "source": "/(.*)",
