@@ -1,23 +1,18 @@
-// ============================================================================
-// نقطة الدخول لما المشروع بيشتغل على Vercel (Serverless Functions).
-// فيرسل مش بيشغّل السيرفر بـ app.listen زي الاستضافات العادية — بيستدعي
-// دالة handler لكل ريكوست لوحده. فبنبني تطبيق NestJS مرة واحدة ونكاشه
-// (cachedHandler) عشان منعيدش بناء التطبيق كامل مع كل طلب.
-// ============================================================================
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { ExpressAdapter } from "@nestjs/platform-express";
 import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import express from "express";
-import serverless from "serverless-http";
 import { AppModule } from "../src/app.module";
 import { AllExceptionsFilter } from "../src/common/filters/all-exceptions.filter";
 
-let cachedHandler: any;
+const expressApp = express();
+let isInitialized = false;
 
 async function bootstrapServer() {
-  const expressApp = express();
+  if (isInitialized) return;
+
   const app = await NestFactory.create(AppModule, new ExpressAdapter(expressApp));
   const config = app.get(ConfigService);
 
@@ -35,13 +30,10 @@ async function bootstrapServer() {
   app.useGlobalFilters(new AllExceptionsFilter());
 
   await app.init();
-  return serverless(expressApp);
+  isInitialized = true;
 }
 
-// فيرسل بينده على الدالة دي لكل ريكوست جاي على /api/*
 export default async (req: any, res: any) => {
-  if (!cachedHandler) {
-    cachedHandler = await bootstrapServer();
-  }
-  return cachedHandler(req, res);
+  await bootstrapServer();
+  expressApp(req, res);
 };
