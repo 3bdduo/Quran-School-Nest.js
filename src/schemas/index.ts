@@ -16,3 +16,7 @@ export * from "./notification.schema";
 export * from "./notification-read.schema";
 export * from "./teacher-salary-config.schema";
 export * from "./teacher-salary-record.schema";
+export * from "./blog-post.schema";
+export * from "./media-item.schema";
+export * from "./teacher-profile.schema";
+export * from "./contact-message.schema";
