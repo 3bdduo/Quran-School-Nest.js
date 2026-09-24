@@ -9,7 +9,6 @@ import {
 } from "../../schemas";
 import { GroupsService } from "./groups.service";
 import { GroupsController } from "./groups.controller";
-import { NotificationsModule } from "../notifications/notifications.module";
 
 @Module({
   imports: [
@@ -26,7 +25,6 @@ import { NotificationsModule } from "../notifications/notifications.module";
       { name: CompetitionParticipant.name, schema: CompetitionParticipantSchema },
       { name: CompetitionResult.name, schema: CompetitionResultSchema },
     ]),
-    NotificationsModule,
   ],
   controllers: [GroupsController],
   providers: [GroupsService],

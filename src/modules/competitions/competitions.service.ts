@@ -3,7 +3,6 @@ import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 import { Competition, CompetitionParticipant, CompetitionResult, Student, EduStudentRef } from "../../schemas";
-import { NotificationsService } from "../notifications/notifications.service";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 
 @Injectable()
@@ -14,7 +13,6 @@ export class CompetitionsService {
     @InjectModel(CompetitionResult.name) private readonly resultModel: Model<CompetitionResult>,
     @InjectModel(Student.name) private readonly studentModel: Model<Student>,
     @InjectModel(EduStudentRef.name) private readonly eduStudentRefModel: Model<EduStudentRef>,
-    private readonly notificationsService: NotificationsService,
   ) {}
 
   async findAll() {
@@ -139,18 +137,6 @@ export class CompetitionsService {
     }));
     await this.resultModel.insertMany(docs);
     await this.competitionModel.updateOne({ id: competitionId }, { results_published: true });
-
-    // أوتوميشن: إشعار عام لكل المشاركين + إشعار خاص للفايزين بالمراكز الأولى
-    for (const r of finalResults) {
-      const isWinner = r.rank <= 3;
-      await this.notificationsService.notifyStudent(
-        r.studentId,
-        isWinner ? `🏆 تهانينا! حصلت على المركز ${r.rank}` : "تم نشر نتائج المسابقة",
-        isWinner
-          ? `مبروك! حصلت على المركز ${r.rank} في مسابقة "${comp.name}" بدرجة ${r.score}.`
-          : `تم نشر نتائج مسابقة "${comp.name}". درجتك: ${r.score}، ترتيبك: ${r.rank}.`,
-      );
-    }
 
     return { message: "تم الحفظ", results: finalResults };
   }

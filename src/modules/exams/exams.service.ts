@@ -3,7 +3,6 @@ import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 import { ExamRecord, Student } from "../../schemas";
-import { NotificationsService } from "../notifications/notifications.service";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 
 @Injectable()
@@ -11,7 +10,6 @@ export class ExamsService {
   constructor(
     @InjectModel(ExamRecord.name) private readonly examModel: Model<ExamRecord>,
     @InjectModel(Student.name) private readonly studentModel: Model<Student>,
-    private readonly notificationsService: NotificationsService,
   ) {}
 
   async findByEduGroup(user: CurrentUserPayload, eduGroupId: string) {
@@ -46,15 +44,6 @@ export class ExamsService {
       id: examId, edu_group_id: eduGroupId, student_id: s.studentId, name: body.name, score: s.score, max_score: body.maxScore, date: body.date,
     }));
     await this.examModel.insertMany(docs);
-
-    // أوتوميشن: نبلّغ كل طالب بدرجته أوتوماتيك فور رصد الامتحان
-    for (const s of body.scores) {
-      await this.notificationsService.notifyStudent(
-        s.studentId,
-        `نتيجة امتحان: ${body.name}`,
-        `درجتك في امتحان "${body.name}" هي ${s.score} من ${body.maxScore}.`,
-      );
-    }
 
     return { examId, name: body.name, maxScore: body.maxScore, date: body.date, scores: body.scores };
   }

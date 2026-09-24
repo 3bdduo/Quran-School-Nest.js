@@ -3,7 +3,7 @@ import { MongooseModule } from "@nestjs/mongoose";
 import { MemorizationLog, MemorizationLogSchema, Student, StudentSchema, EduStudentRef, EduStudentRefSchema } from "../../schemas";
 import { MemorizationService } from "./memorization.service";
 import { MemorizationController } from "./memorization.controller";
-import { NotificationsModule } from "../notifications/notifications.module";
+
 
 @Module({
   imports: [
@@ -12,7 +12,7 @@ import { NotificationsModule } from "../notifications/notifications.module";
       { name: Student.name, schema: StudentSchema },
       { name: EduStudentRef.name, schema: EduStudentRefSchema },
     ]),
-    NotificationsModule,
+
   ],
   controllers: [MemorizationController],
   providers: [MemorizationService],

@@ -2,7 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/commo
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { PaymentRecord, Student } from "../../schemas";
-import { NotificationsService } from "../notifications/notifications.service";
+
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 
 @Injectable()
@@ -10,7 +10,7 @@ export class PaymentsService {
   constructor(
     @InjectModel(PaymentRecord.name) private readonly paymentModel: Model<PaymentRecord>,
     @InjectModel(Student.name) private readonly studentModel: Model<Student>,
-    private readonly notificationsService: NotificationsService,
+
   ) {}
 
   async byStudent(user: CurrentUserPayload, studentId: string) {
@@ -33,18 +33,6 @@ export class PaymentsService {
       { student_id: studentId, month_key: monthKey, status: body.status, amount: body.amount, paid_date: body.paidDate || null, note: body.note || null },
       { upsert: true, new: true },
     ).lean();
-
-    // أوتوميشن: لو الحالة اتسجلت "مدفوع"، نبعت للطالب إشعار إيصال أوتوماتيك
-    if (body.status === "paid") {
-      const student = await this.studentModel.findOne({ id: studentId }).lean();
-      if (student) {
-        await this.notificationsService.notifyStudent(
-          studentId,
-          "تم استلام الاشتراك",
-          `تم تسجيل دفع اشتراك شهر ${monthKey} بمبلغ ${body.amount ?? student.monthly_fee} جنيه. شكرًا لالتزامكم.`,
-        );
-      }
-    }
 
     return record;
   }

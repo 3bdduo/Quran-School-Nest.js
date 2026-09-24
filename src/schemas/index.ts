@@ -13,8 +13,6 @@ export * from "./competition.schema";
 export * from "./competition-participant.schema";
 export * from "./competition-result.schema";
 export * from "./activity-log.schema";
-export * from "./notification.schema";
-export * from "./notification-read.schema";
 export * from "./teacher-salary-config.schema";
 export * from "./teacher-salary-record.schema";
 export * from "./blog-post.schema";

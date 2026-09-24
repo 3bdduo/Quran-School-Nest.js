@@ -16,7 +16,7 @@ import { MemorizationModule } from "./modules/memorization/memorization.module";
 import { PaymentsModule } from "./modules/payments/payments.module";
 import { ExamsModule } from "./modules/exams/exams.module";
 import { CompetitionsModule } from "./modules/competitions/competitions.module";
-import { NotificationsModule } from "./modules/notifications/notifications.module";
+
 import { ActivityLogModule } from "./modules/activity-log/activity-log.module";
 import { SalariesModule } from "./modules/salaries/salaries.module";
 import { ReportsModule } from "./modules/reports/reports.module";
@@ -40,7 +40,6 @@ import { SeedModule } from "./seed/seed.module";
 
     // ActivityLogModule الأول عشان الإنترسبتور بتاعه يتسجل قبل أي حاجة تانية
     ActivityLogModule,
-    NotificationsModule,
 
     AuthModule,
     SettingsModule,

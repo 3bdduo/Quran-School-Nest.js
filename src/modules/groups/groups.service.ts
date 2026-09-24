@@ -6,7 +6,6 @@ import {
   Group, Teacher, Student, AttendanceRecord, MemorizationLog, PaymentRecord,
   EduStudentRef, EduAttendanceRecord, ExamRecord, CompetitionParticipant, CompetitionResult,
 } from "../../schemas";
-import { NotificationsService } from "../notifications/notifications.service";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 
 @Injectable()
@@ -23,7 +22,6 @@ export class GroupsService {
     @InjectModel(ExamRecord.name) private readonly examModel: Model<ExamRecord>,
     @InjectModel(CompetitionParticipant.name) private readonly competitionParticipantModel: Model<CompetitionParticipant>,
     @InjectModel(CompetitionResult.name) private readonly competitionResultModel: Model<CompetitionResult>,
-    private readonly notificationsService: NotificationsService,
   ) {}
 
   async findAll() {
@@ -102,17 +100,6 @@ export class GroupsService {
     }
 
     await this.groupModel.create({ id, name: body.name, teacher_id: body.teacherId || null });
-
-    if (body.teacherId) {
-      const teacher = await this.teacherModel.findOne({ id: body.teacherId }).lean();
-      if (teacher) {
-        await this.notificationsService.notifyTeacher(
-          teacher.username,
-          "تم إنشاء حلقتك",
-          `تم إنشاء حلقة "${body.name}" وربطها بحسابك.`,
-        );
-      }
-    }
 
     return { id, name: body.name, teacherId: body.teacherId || null };
   }

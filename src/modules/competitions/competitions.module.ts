@@ -6,7 +6,6 @@ import {
 } from "../../schemas";
 import { CompetitionsService } from "./competitions.service";
 import { CompetitionsController } from "./competitions.controller";
-import { NotificationsModule } from "../notifications/notifications.module";
 
 @Module({
   imports: [
@@ -17,7 +16,6 @@ import { NotificationsModule } from "../notifications/notifications.module";
       { name: Student.name, schema: StudentSchema },
       { name: EduStudentRef.name, schema: EduStudentRefSchema },
     ]),
-    NotificationsModule,
   ],
   controllers: [CompetitionsController],
   providers: [CompetitionsService],

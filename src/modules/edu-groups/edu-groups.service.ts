@@ -4,7 +4,6 @@ import { Model } from "mongoose";
 import * as bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
 import { EduGroup, EduStudentRef, EduAttendanceRecord, ExamRecord, Student } from "../../schemas";
-import { NotificationsService } from "../notifications/notifications.service";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 
 @Injectable()
@@ -15,7 +14,6 @@ export class EduGroupsService {
     @InjectModel(EduAttendanceRecord.name) private readonly eduAttendanceModel: Model<EduAttendanceRecord>,
     @InjectModel(ExamRecord.name) private readonly examModel: Model<ExamRecord>,
     @InjectModel(Student.name) private readonly studentModel: Model<Student>,
-    private readonly notificationsService: NotificationsService,
   ) {}
 
   async findAll() {
@@ -64,11 +62,6 @@ export class EduGroupsService {
       if (err.code === 11000) throw new ConflictException("اسم المستخدم موجود بالفعل");
       throw err;
     }
-    await this.notificationsService.notifyTeacher(
-      body.teacherUsername,
-      "تم إنشاء حساب مجموعتك التعليمية",
-      `تم إنشاء مجموعة "${body.name}" وربطها بحسابك.`,
-    );
     return { id, name: body.name, teacherUsername: body.teacherUsername };
   }
 

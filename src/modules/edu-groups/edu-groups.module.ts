@@ -7,7 +7,6 @@ import {
 } from "../../schemas";
 import { EduGroupsService } from "./edu-groups.service";
 import { EduGroupsController } from "./edu-groups.controller";
-import { NotificationsModule } from "../notifications/notifications.module";
 
 @Module({
   imports: [
@@ -18,7 +17,6 @@ import { NotificationsModule } from "../notifications/notifications.module";
       { name: ExamRecord.name, schema: ExamRecordSchema },
       { name: Student.name, schema: StudentSchema },
     ]),
-    NotificationsModule,
   ],
   controllers: [EduGroupsController],
   providers: [EduGroupsService],

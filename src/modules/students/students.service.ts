@@ -7,7 +7,7 @@ import {
   Student, Settings, PaymentRecord, AttendanceRecord, MemorizationLog,
   EduStudentRef, EduAttendanceRecord, ExamRecord, CompetitionParticipant, CompetitionResult,
 } from "../../schemas";
-import { NotificationsService } from "../notifications/notifications.service";
+
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 
 const FIELD_MAP: Record<string, string> = {
@@ -61,7 +61,7 @@ export class StudentsService {
     @InjectModel(ExamRecord.name) private readonly examModel: Model<ExamRecord>,
     @InjectModel(CompetitionParticipant.name) private readonly competitionParticipantModel: Model<CompetitionParticipant>,
     @InjectModel(CompetitionResult.name) private readonly competitionResultModel: Model<CompetitionResult>,
-    private readonly notificationsService: NotificationsService,
+
   ) {}
 
   async findAll(user: CurrentUserPayload, groupIdQuery?: string) {
@@ -170,20 +170,15 @@ export class StudentsService {
     }
     await this.paymentModel.insertMany(paymentDocs, { ordered: false }).catch(() => undefined);
 
-    // بلّغ الحلقة لو مش في الانتظار
-    if (groupId && !body.isWaiting) {
-      await this.notificationsService.notifyGroup(groupId, "طالب جديد", `تم تسجيل الطالب "${body.name}" في الحلقة.`);
-    }
-
     return this.studentModel.findOne({ id }).lean();
   }
 
   // تسجيل ذاتي من الموقع (يذهب لقائمة الانتظار)
   async publicRegister(body: {
-    name: string; parentName: string; phone: string; age: string; nationalId: string; notes?: string;
+    name: string; phone: string; nationalId: string; memorizedAmount: string; currentSurah: string;
   }) {
-    if (!body.name || !body.parentName || !body.phone || !body.nationalId || body.nationalId.length !== 14) {
-      throw new ConflictException("الحقول المطلوبة: name, parentName, phone, nationalId (14 رقم)");
+    if (!body.name || !body.phone || !body.nationalId || body.nationalId.length !== 14 || !body.memorizedAmount || !body.currentSurah) {
+      throw new ConflictException("جميع الحقول مطلوبة");
     }
 
     const settings = await this.settingsModel.findById(1).lean();
@@ -195,10 +190,10 @@ export class StudentsService {
     try {
       await this.studentModel.create({
         id, group_id: "waiting", name: body.name,
-        national_id: body.nationalId, parent_name: body.parentName,
-        date_of_birth: dateOfBirth, age: age || parseInt(body.age) || 0,
-        phone: body.phone, notes: body.notes || null,
-        memorized_amount: "0", current_surah: "غير محدد",
+        national_id: body.nationalId,
+        date_of_birth: dateOfBirth, age: age || 0,
+        phone: body.phone,
+        memorized_amount: body.memorizedAmount, current_surah: body.currentSurah,
         monthly_fee: monthlyFee, is_waiting: true,
       });
     } catch (err: any) {
@@ -220,8 +215,6 @@ export class StudentsService {
       { group_id: groupId, is_waiting: false },
       { new: true }
     );
-
-    await this.notificationsService.notifyGroup(groupId, "طالب جديد", `تم إضافة الطالب "${student.name}" للحلقة من قائمة الانتظار.`);
 
     return this.studentModel.findOne({ id: studentId }).lean();
   }

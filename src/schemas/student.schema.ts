@@ -12,11 +12,11 @@ export class Student extends Document {
   @Prop({ type: String, required: true, unique: true })
   national_id: string;
 
-  @Prop({ type: String, required: true })
-  date_of_birth: string;
+  @Prop({ type: String })
+  date_of_birth?: string;
 
-  @Prop({ type: Number, required: true })
-  age: number;
+  @Prop({ type: Number })
+  age?: number;
 
   @Prop({ type: String })
   parent_name?: string;

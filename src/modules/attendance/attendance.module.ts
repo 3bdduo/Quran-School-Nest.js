@@ -3,7 +3,6 @@ import { MongooseModule } from "@nestjs/mongoose";
 import { AttendanceRecord, AttendanceRecordSchema, Student, StudentSchema } from "../../schemas";
 import { AttendanceService } from "./attendance.service";
 import { AttendanceController } from "./attendance.controller";
-import { NotificationsModule } from "../notifications/notifications.module";
 
 @Module({
   imports: [
@@ -11,7 +10,6 @@ import { NotificationsModule } from "../notifications/notifications.module";
       { name: AttendanceRecord.name, schema: AttendanceRecordSchema },
       { name: Student.name, schema: StudentSchema },
     ]),
-    NotificationsModule,
   ],
   controllers: [AttendanceController],
   providers: [AttendanceService],

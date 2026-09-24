@@ -2,43 +2,14 @@ import { BadRequestException, ForbiddenException, Injectable } from "@nestjs/com
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { AttendanceRecord, Student } from "../../schemas";
-import { NotificationsService } from "../notifications/notifications.service";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
-
-const CONSECUTIVE_ABSENCE_ALERT_THRESHOLD = 3;
 
 @Injectable()
 export class AttendanceService {
   constructor(
     @InjectModel(AttendanceRecord.name) private readonly attendanceModel: Model<AttendanceRecord>,
     @InjectModel(Student.name) private readonly studentModel: Model<Student>,
-    private readonly notificationsService: NotificationsService,
   ) {}
-
-  // ============================================================================
-  // أوتوميشن: لو الطالب غاب 3 مرات على التوالي، بنبعت تنبيه تلقائي لحلقته
-  // (كانت العملية دي مش موجودة خالص في النسخة القديمة)
-  // ============================================================================
-  private async checkConsecutiveAbsences(studentId: string) {
-    const recent = await this.attendanceModel
-      .find({ student_id: studentId })
-      .sort({ date: -1 })
-      .limit(CONSECUTIVE_ABSENCE_ALERT_THRESHOLD)
-      .lean();
-
-    if (recent.length < CONSECUTIVE_ABSENCE_ALERT_THRESHOLD) return;
-    const allAbsent = recent.every((r) => r.status === "غائب");
-    if (!allAbsent) return;
-
-    const student = await this.studentModel.findOne({ id: studentId }).lean();
-    if (!student) return;
-
-    await this.notificationsService.notifyGroup(
-      student.group_id,
-      "تنبيه غياب متكرر",
-      `الطالب "${student.name}" غاب ${CONSECUTIVE_ABSENCE_ALERT_THRESHOLD} مرات متتالية، يُرجى المتابعة.`,
-    );
-  }
 
   async markOne(user: CurrentUserPayload, studentId: string, date: string, status: string) {
     if (!studentId || !date || !status) throw new BadRequestException("studentId, date, status مطلوبة");
@@ -57,7 +28,6 @@ export class AttendanceService {
       { upsert: true },
     );
 
-    if (status === "غائب") await this.checkConsecutiveAbsences(studentId);
     return { message: "تم التسجيل" };
   }
 
@@ -77,7 +47,6 @@ export class AttendanceService {
         { student_id: entry.studentId, date, status: entry.status },
         { upsert: true },
       );
-      if (entry.status === "غائب") await this.checkConsecutiveAbsences(entry.studentId);
     }
 
     return { message: "تم التسجيل", count: entries.length };

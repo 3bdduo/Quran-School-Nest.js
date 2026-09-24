@@ -9,7 +9,7 @@ import {
 } from "../../schemas";
 import { StudentsService } from "./students.service";
 import { StudentsController } from "./students.controller";
-import { NotificationsModule } from "../notifications/notifications.module";
+
 
 @Module({
   imports: [
@@ -25,7 +25,6 @@ import { NotificationsModule } from "../notifications/notifications.module";
       { name: CompetitionParticipant.name, schema: CompetitionParticipantSchema },
       { name: CompetitionResult.name, schema: CompetitionResultSchema },
     ]),
-    NotificationsModule,
   ],
   controllers: [StudentsController],
   providers: [StudentsService],

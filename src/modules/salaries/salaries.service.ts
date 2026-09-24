@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { Teacher, TeacherSalaryConfig, TeacherSalaryRecord } from "../../schemas";
-import { NotificationsService } from "../notifications/notifications.service";
+
 
 @Injectable()
 export class SalariesService {
@@ -10,7 +10,7 @@ export class SalariesService {
     @InjectModel(Teacher.name) private readonly teacherModel: Model<Teacher>,
     @InjectModel(TeacherSalaryConfig.name) private readonly configModel: Model<TeacherSalaryConfig>,
     @InjectModel(TeacherSalaryRecord.name) private readonly recordModel: Model<TeacherSalaryRecord>,
-    private readonly notificationsService: NotificationsService,
+
   ) {}
 
   private computeNet(base: number, incentive: number, deduction: number) {
@@ -142,13 +142,6 @@ export class SalariesService {
       },
       { upsert: true, new: true },
     ).lean();
-
-    if (body.status === "paid") {
-      await this.notificationsService.notifyTeacher(
-        username, "تم صرف راتبك",
-        `تم صرف راتب شهر ${monthKey}. الراتب الأساسي: ${baseSalary} | الحافز: ${incentiveAmount} | الخصم: ${deductionAmount} | الصافي: ${netSalary} جنيه.`,
-      );
-    }
 
     return record;
   }

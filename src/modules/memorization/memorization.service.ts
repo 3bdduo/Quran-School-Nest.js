@@ -3,7 +3,7 @@ import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 import { MemorizationLog, Student, EduStudentRef } from "../../schemas";
-import { NotificationsService } from "../notifications/notifications.service";
+
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 
 // حد إنجاز الحفظ اللي بيستحق تهنئة أوتوماتيكية (كل ما وصل الطالب لعدد أجزاء صحيح)
@@ -15,7 +15,7 @@ export class MemorizationService {
     @InjectModel(MemorizationLog.name) private readonly logModel: Model<MemorizationLog>,
     @InjectModel(Student.name) private readonly studentModel: Model<Student>,
     @InjectModel(EduStudentRef.name) private readonly eduStudentRefModel: Model<EduStudentRef>,
-    private readonly notificationsService: NotificationsService,
+
   ) {}
 
   private async assertAccess(user: CurrentUserPayload, studentId: string) {
@@ -49,13 +49,6 @@ export class MemorizationService {
       total_after: body.totalAfter, teacher_note: body.teacherNote || null,
     });
     await this.studentModel.updateOne({ id: studentId }, { memorized_amount: body.totalAfter });
-
-    // أوتوميشن: نبعت للطالب تحديث حفظه أوتوماتيك كل ما يتسجل له تسميع جديد
-    await this.notificationsService.notifyStudent(
-      studentId,
-      "تحديث في سجل الحفظ",
-      `تم تسجيل تسميع جديد بتاريخ ${body.date}. إجمالي المحفوظ الآن: ${body.totalAfter}.`,
-    );
 
     return this.logModel.findOne({ id }).lean();
   }

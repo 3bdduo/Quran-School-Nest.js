@@ -3,24 +3,19 @@ import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 import { ContactMessage } from "../../schemas";
-import { NotificationsService } from "../notifications/notifications.service";
+
 
 @Injectable()
 export class ContactService {
   constructor(
     @InjectModel(ContactMessage.name) private readonly model: Model<ContactMessage>,
-    private readonly notificationsService: NotificationsService,
   ) {}
-
   async submit(body: { name: string; phone?: string; message: string }) {
     if (!body.name || !body.message) {
       throw new BadRequestException("الاسم والرسالة مطلوبين");
     }
     const id = uuidv4();
     await this.model.create({ id, name: body.name, phone: body.phone || null, message: body.message });
-
-    // أوتوميشن: نبلّغ الأدمن أوتوماتيك برسالة تواصل جديدة
-    await this.notificationsService.notifyAll("رسالة تواصل جديدة", `رسالة جديدة من ${body.name} (${body.phone || "بدون رقم"})`);
 
     return { message: "تم إرسال رسالتك بنجاح، سنتواصل معك قريبًا بإذن الله" };
   }
