@@ -23,6 +23,27 @@ export class ExportsController {
     this.sendXlsx(res, buffer, "كشف-الطلاب.xlsx");
   }
 
+  @Get("students/group/:groupId.xlsx")
+  @LogAction("تصدير كشف حلقة محددة إلى إكسل")
+  async groupStudentsExcel(@Param("groupId") groupId: string, @Res() res: Response) {
+    const buffer = await this.service.groupStudentsExcel(groupId);
+    this.sendXlsx(res, buffer, `كشف-حلقة-${groupId}.xlsx`);
+  }
+
+  @Get("students/all-grouped.xlsx")
+  @LogAction("تصدير كشف كل الحلقات مقسمة إلى إكسل")
+  async allGroupedExcel(@Res() res: Response) {
+    const buffer = await this.service.allGroupedExcel();
+    this.sendXlsx(res, buffer, "كشف-الطلاب-مقسم-بالحلقات.xlsx");
+  }
+
+  @Get("students/all-alpha.xlsx")
+  @LogAction("تصدير كشف كل الطلاب أبجديًا")
+  async allAlphaExcel(@Res() res: Response) {
+    const buffer = await this.service.allAlphaExcel();
+    this.sendXlsx(res, buffer, "كشف-الطلاب-أبجدي.xlsx");
+  }
+
   @Get("teachers.xlsx")
   @LogAction("تصدير كشف المعلمين إلى إكسل")
   async teachersExcel(@Res() res: Response) {

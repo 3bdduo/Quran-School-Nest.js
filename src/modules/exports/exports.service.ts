@@ -68,6 +68,131 @@ export class ExportsService {
   }
 
   // ==========================================================================
+  // 1a) إكسل: كشف طلاب حلقة واحدة محددة (باسم المعلم الثلاثي كعنوان)
+  // ==========================================================================
+  async groupStudentsExcel(groupId: string): Promise<ExcelJS.Buffer> {
+    const schoolName = await this.schoolName();
+
+    const group = await this.groupModel.findOne({ id: groupId }).lean();
+    if (!group) throw new NotFoundException("الحلقة غير موجودة");
+
+    const groupTeacher = group.teacher_id
+      ? await this.teacherModel.findOne({ id: group.teacher_id }).lean()
+      : null;
+
+    const teacherName = groupTeacher?.full_name || "غير مسند";
+    const students = await this.studentModel.find({ group_id: groupId }).sort({ name: 1 }).lean();
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet(group.name);
+    styleWorksheet(sheet);
+
+    const headers = ["م", "اسم الطالب", "الرقم القومي", "رقم الهاتف", "السن", "السورة الحالية", "عدد الأجزاء"];
+    sheet.columns = headers.map(() => ({ width: 20 }));
+    addReportHeader(sheet, schoolName, `${group.name} — معلم الحلقة: ${teacherName}`, headers.length);
+
+    const headerRow = sheet.addRow(headers);
+    styleTableHeaderRow(headerRow);
+
+    students.forEach((s, idx) => {
+      const row = sheet.addRow([
+        idx + 1, s.name, s.national_id, s.phone || "-",
+        s.age ? `${s.age} سنة` : "-",
+        (s as any).current_surah || "-",
+        s.memorized_amount || "0",
+      ]);
+      styleDataRow(row, idx % 2 === 0);
+    });
+
+    return workbook.xlsx.writeBuffer();
+  }
+
+  // ==========================================================================
+  // 1b) إكسل: كل الطلاب مقسمين شيت لكل حلقة (مع اسم المعلم في العنوان)
+  // ==========================================================================
+  async allGroupedExcel(): Promise<ExcelJS.Buffer> {
+    const schoolName = await this.schoolName();
+
+    const [groups, teachers, students] = await Promise.all([
+      this.groupModel.find().sort({ name: 1 }).lean(),
+      this.teacherModel.find().lean(),
+      this.studentModel.find().sort({ name: 1 }).lean(),
+    ]);
+
+    const teacherMap = Object.fromEntries(teachers.map((t) => [t.id, t.full_name]));
+    const studentsByGroup = new Map<string, typeof students>();
+
+    for (const g of groups) studentsByGroup.set(g.id, []);
+    for (const s of students) {
+      const arr = studentsByGroup.get(s.group_id);
+      if (arr) arr.push(s);
+    }
+
+    const workbook = new ExcelJS.Workbook();
+
+    for (const group of groups) {
+      const gs = studentsByGroup.get(group.id) || [];
+      if (gs.length === 0) continue;
+
+      const teacherName = group.teacher_id ? teacherMap[group.teacher_id] || "غير مسند" : "غير مسند";
+      const sheetName = group.name.substring(0, 31); // Excel sheet name limit
+      const sheet = workbook.addWorksheet(sheetName);
+      styleWorksheet(sheet);
+
+      const headers = ["م", "اسم الطالب", "الرقم القومي", "رقم الهاتف", "السن", "السورة الحالية", "عدد الأجزاء"];
+      sheet.columns = headers.map(() => ({ width: 20 }));
+      addReportHeader(sheet, schoolName, `${group.name} — معلم الحلقة: ${teacherName}`, headers.length);
+
+      const headerRow = sheet.addRow(headers);
+      styleTableHeaderRow(headerRow);
+
+      gs.forEach((s, idx) => {
+        const row = sheet.addRow([
+          idx + 1, s.name, s.national_id, s.phone || "-",
+          s.age ? `${s.age} سنة` : "-",
+          (s as any).current_surah || "-",
+          s.memorized_amount || "0",
+        ]);
+        styleDataRow(row, idx % 2 === 0);
+      });
+    }
+
+    return workbook.xlsx.writeBuffer();
+  }
+
+  // ==========================================================================
+  // 1c) إكسل: كل الطلاب مرتبين أبجديًا في شيت واحد بدون اسم المعلم
+  // ==========================================================================
+  async allAlphaExcel(): Promise<ExcelJS.Buffer> {
+    const schoolName = await this.schoolName();
+
+    const students = await this.studentModel.find().sort({ name: 1 }).lean();
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("الطلاب");
+    styleWorksheet(sheet);
+
+    const headers = ["م", "اسم الطالب", "الرقم القومي", "رقم الهاتف", "السن", "السورة الحالية", "عدد الأجزاء"];
+    sheet.columns = headers.map(() => ({ width: 20 }));
+    addReportHeader(sheet, schoolName, "كشف بأسماء جميع الطلاب (مرتب أبجديًا)", headers.length);
+
+    const headerRow = sheet.addRow(headers);
+    styleTableHeaderRow(headerRow);
+
+    students.forEach((s, idx) => {
+      const row = sheet.addRow([
+        idx + 1, s.name, s.national_id, s.phone || "-",
+        s.age ? `${s.age} سنة` : "-",
+        (s as any).current_surah || "-",
+        s.memorized_amount || "0",
+      ]);
+      styleDataRow(row, idx % 2 === 0);
+    });
+
+    return workbook.xlsx.writeBuffer();
+  }
+
+  // ==========================================================================
   // 1.5) إكسل: كشف بجميع المعلمين
   // ==========================================================================
   async teachersExcel(): Promise<ExcelJS.Buffer> {
