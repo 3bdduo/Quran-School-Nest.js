@@ -4,7 +4,7 @@ import { Model } from "mongoose";
 import * as ExcelJS from "exceljs";
 import { Packer } from "docx";
 import {
-  Settings, Student, Group, EduGroup, PaymentRecord, AttendanceRecord, MemorizationLog,
+  Settings, Student, Teacher, Group, EduGroup, PaymentRecord, AttendanceRecord, MemorizationLog,
   TeacherSalaryConfig, TeacherSalaryRecord, Competition, CompetitionResult,
 } from "../../schemas";
 import { addReportHeader, styleDataRow, styleTableHeaderRow, styleWorksheet } from "./excel.util";
@@ -15,6 +15,7 @@ import { Paragraph } from "docx";
 export class ExportsService {
   constructor(
     @InjectModel(Settings.name) private readonly settingsModel: Model<Settings>,
+    @InjectModel(Teacher.name) private readonly teacherModel: Model<Teacher>,
     @InjectModel(Student.name) private readonly studentModel: Model<Student>,
     @InjectModel(Group.name) private readonly groupModel: Model<Group>,
     @InjectModel(EduGroup.name) private readonly eduGroupModel: Model<EduGroup>,
@@ -35,10 +36,12 @@ export class ExportsService {
   // ==========================================================================
   // 1) إكسل: كشف بجميع الطلاب (بالحلقة، السن، الحفظ، الاشتراك الشهري)
   // ==========================================================================
-  async studentsExcel(): Promise<ExcelJS.Buffer> {
-    const [schoolName, students, groups] = await Promise.all([
-      this.schoolName(),
-      this.studentModel.find().sort({ name: 1 }).lean(),
+  async studentsExcel(groupId?: string): Promise<ExcelJS.Buffer> {
+    const schoolName = await this.schoolName();
+    const filter = groupId ? { group_id: groupId } : {};
+    
+    const [students, groups] = await Promise.all([
+      this.studentModel.find(filter).sort({ name: 1 }).lean(),
       this.groupModel.find().lean(),
     ]);
     const groupNameMap = Object.fromEntries(groups.map((g) => [g.id, g.name]));
@@ -63,6 +66,46 @@ export class ExportsService {
 
     return workbook.xlsx.writeBuffer();
   }
+
+  // ==========================================================================
+  // 1.5) إكسل: كشف بجميع المعلمين
+  // ==========================================================================
+  async teachersExcel(): Promise<ExcelJS.Buffer> {
+    const schoolName = await this.schoolName();
+    const [teachers, groups] = await Promise.all([
+      this.teacherModel.find().sort({ full_name: 1 }).lean(),
+      this.groupModel.find().lean(),
+    ]);
+    
+    const groupsByTeacher: Record<string, string[]> = {};
+    groups.forEach((g) => {
+      if (g.teacher_id) {
+        if (!groupsByTeacher[g.teacher_id]) groupsByTeacher[g.teacher_id] = [];
+        groupsByTeacher[g.teacher_id].push(g.name);
+      }
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("المعلمين");
+    styleWorksheet(sheet);
+    const headers = ["م", "الاسم", "الرقم القومي", "اسم المستخدم", "رقم الهاتف", "الحلقات المسندة"];
+    sheet.columns = headers.map(() => ({ width: 22 }));
+    addReportHeader(sheet, schoolName, "كشف بيانات المعلمين", headers.length);
+
+    const headerRow = sheet.addRow(headers);
+    styleTableHeaderRow(headerRow);
+
+    teachers.forEach((t, idx) => {
+      const teacherGroups = groupsByTeacher[t.id]?.join("، ") || "بدون حلقة";
+      const row = sheet.addRow([
+        idx + 1, t.full_name, t.national_id, t.username, t.phone || "-", teacherGroups
+      ]);
+      styleDataRow(row, idx % 2 === 0);
+    });
+
+    return workbook.xlsx.writeBuffer();
+  }
+
 
   // ==========================================================================
   // 2) وورد: بروفايل تفصيلي لطالب واحد (حضور / حفظ / مدفوعات)

@@ -32,8 +32,15 @@ export class StudentsService {
   ) {}
 
   async findAll(user: CurrentUserPayload, groupIdQuery?: string) {
-    const effectiveGroupId = user.role === "teacher" ? user.groupId : groupIdQuery;
-    const filter = effectiveGroupId ? { group_id: effectiveGroupId } : {};
+    if (user.role === "teacher") {
+      const groupIds = user.groupIds || [];
+      const filter: any = { group_id: { $in: groupIds } };
+      if (groupIdQuery && groupIds.includes(groupIdQuery)) {
+        filter.group_id = groupIdQuery;
+      }
+      return this.studentModel.find(filter).lean();
+    }
+    const filter = groupIdQuery ? { group_id: groupIdQuery } : {};
     return this.studentModel.find(filter).lean();
   }
 
@@ -50,7 +57,8 @@ export class StudentsService {
     if (!student) throw new NotFoundException("الطالب غير موجود");
 
     if (user.role === "teacher") {
-      const isRegularGroup = student.group_id === user.groupId;
+      const groupIds = user.groupIds || [];
+      const isRegularGroup = groupIds.includes(student.group_id);
       let isEduGroup = false;
       if (user.eduGroupId) {
         const ref = await this.eduStudentRefModel.findOne({ edu_group_id: user.eduGroupId, student_id: id }).lean();
@@ -78,7 +86,16 @@ export class StudentsService {
 
   async create(user: CurrentUserPayload, body: any) {
     let groupId = body.groupId;
-    if (user.role === "teacher") groupId = user.groupId;
+    if (user.role === "teacher") {
+      const groupIds = user.groupIds || [];
+      if (!groupIds.includes(groupId)) {
+        if (groupIds.length === 1 && !groupId) {
+          groupId = groupIds[0];
+        } else {
+          throw new ForbiddenException("يرجى تحديد الحلقة الصحيحة للطالب");
+        }
+      }
+    }
 
     if (!groupId || !body.name || !body.nationalId || !body.dateOfBirth || !body.age) {
       throw new ConflictException("الحقول المطلوبة: groupId, name, nationalId, dateOfBirth, age");
@@ -124,9 +141,10 @@ export class StudentsService {
     }
 
     if (user.role === "teacher") {
+      const groupIds = user.groupIds || [];
       const existing = await this.studentModel.findOne({ id }).lean();
-      if (!existing || existing.group_id !== user.groupId) throw new ForbiddenException("ليس لديك صلاحية");
-      delete update.group_id;
+      if (!existing || !groupIds.includes(existing.group_id)) throw new ForbiddenException("ليس لديك صلاحية");
+      delete update.group_id; // المدرس لا يغير مجموعة الطالب
     }
 
     if (Object.keys(update).length === 0) throw new ConflictException("لا يوجد بيانات للتحديث");

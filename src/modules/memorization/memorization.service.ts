@@ -23,7 +23,8 @@ export class MemorizationService {
     if (!student) throw new NotFoundException("الطالب غير موجود");
 
     if (user.role === "teacher") {
-      const isRegular = student.group_id === user.groupId;
+      const groupIds = (user as any).groupIds || [];
+      const isRegular = groupIds.includes(student.group_id);
       let isEdu = false;
       if (user.eduGroupId) {
         const ref = await this.eduStudentRefModel.findOne({ edu_group_id: user.eduGroupId, student_id: studentId }).lean();

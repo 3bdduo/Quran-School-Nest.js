@@ -3,15 +3,15 @@ import { InjectModel } from "@nestjs/mongoose";
 import { JwtService } from "@nestjs/jwt";
 import { Model } from "mongoose";
 import * as bcrypt from "bcryptjs";
-import { Settings, Group, EduGroup, Student } from "../../schemas";
+import { Settings, Teacher, Group, Student } from "../../schemas";
 import { LoginDto } from "./dto/login.dto";
 
 @Injectable()
 export class AuthService {
   constructor(
     @InjectModel(Settings.name) private readonly settingsModel: Model<Settings>,
+    @InjectModel(Teacher.name) private readonly teacherModel: Model<Teacher>,
     @InjectModel(Group.name) private readonly groupModel: Model<Group>,
-    @InjectModel(EduGroup.name) private readonly eduGroupModel: Model<EduGroup>,
     @InjectModel(Student.name) private readonly studentModel: Model<Student>,
     private readonly jwtService: JwtService,
   ) {}
@@ -19,8 +19,8 @@ export class AuthService {
   async login(dto: LoginDto) {
     const { role, username, password } = dto;
     let user: any = null;
-    let groupId: string | null = null;
-    let eduGroupId: string | null = null;
+    let teacherId: string | null = null;
+    let groupIds: string[] = [];
 
     if (role === "admin") {
       const settings = await this.settingsModel.findById(1).lean();
@@ -31,55 +31,47 @@ export class AuthService {
       const valid = await bcrypt.compare(password, settings.admin_password);
       if (!valid) throw new UnauthorizedException("اسم المستخدم أو كلمة المرور غير صحيحة");
       user = { role: "admin", username: "Admin" };
+
     } else if (role === "teacher") {
-      const teacher = await this.groupModel.findOne({ teacher_username: username }).lean();
-      if (teacher) {
-        if (!password) throw new BadRequestException("كلمة المرور مطلوبة");
-        const valid = await bcrypt.compare(password, teacher.teacher_password);
-        if (!valid) throw new UnauthorizedException("اسم المستخدم أو كلمة المرور غير صحيحة");
-        groupId = teacher.id;
-      }
+      // تسجيل دخول المعلم عبر Teacher entity الجديد
+      const teacher = await this.teacherModel.findOne({ username }).lean();
+      if (!teacher) throw new UnauthorizedException("اسم المستخدم أو كلمة المرور غير صحيحة");
+      if (!password) throw new BadRequestException("كلمة المرور مطلوبة");
+      const valid = await bcrypt.compare(password, teacher.password);
+      if (!valid) throw new UnauthorizedException("اسم المستخدم أو كلمة المرور غير صحيحة");
 
-      const eduTeacher = await this.eduGroupModel.findOne({ teacher_username: username }).lean();
-      if (eduTeacher) {
-        if (!groupId) {
-          if (!password) throw new BadRequestException("كلمة المرور مطلوبة");
-          const valid = await bcrypt.compare(password, eduTeacher.teacher_password);
-          if (!valid) throw new UnauthorizedException("اسم المستخدم أو كلمة المرور غير صحيحة");
-        }
-        eduGroupId = eduTeacher.id;
-      }
+      // جلب حلقات المعلم
+      teacherId = teacher.id;
+      const teacherGroups = await this.groupModel.find({ teacher_id: teacherId }).lean();
+      groupIds = teacherGroups.map((g) => g.id);
 
-      if (!groupId && !eduGroupId) {
-        throw new UnauthorizedException("اسم المستخدم أو كلمة المرور غير صحيحة");
-      }
-      user = { role: "teacher", username };
+      user = { role: "teacher", username: teacher.username, teacherId };
+
     } else if (role === "student") {
       const student = await this.studentModel.findOne({ national_id: username }).lean();
       if (!student) throw new UnauthorizedException("الرقم القومي غير موجود");
-
-      if (student.password && password) {
-        const valid = await bcrypt.compare(password, student.password);
-        if (!valid) throw new UnauthorizedException("كلمة المرور غير صحيحة");
-      }
-
       user = { role: "student", username: student.national_id, studentId: student.id };
-      groupId = student.group_id;
     } else {
       throw new BadRequestException("role غير صالح");
     }
 
-    const payload = { ...user, groupId, eduGroupId };
+    const payload = { ...user, groupIds: groupIds.length ? groupIds : undefined };
     const token = this.jwtService.sign(payload);
 
     return {
       token,
-      user: { role: user.role, username: user.username, groupId, eduGroupId },
+      user: {
+        role: user.role,
+        username: user.username,
+        teacherId: user.teacherId || null,
+        groupIds: groupIds.length ? groupIds : undefined,
+        studentId: user.studentId || null,
+      },
     };
   }
 
   me(user: any) {
-    const { role, username, groupId, eduGroupId, studentId } = user;
-    return { role, username, groupId, eduGroupId, studentId };
+    const { role, username, teacherId, groupIds, studentId } = user;
+    return { role, username, teacherId, groupIds, studentId };
   }
 }

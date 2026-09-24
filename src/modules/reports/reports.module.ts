@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
 import {
   Group, GroupSchema, EduGroup, EduGroupSchema, Student, StudentSchema,
+  Teacher, TeacherSchema,
   AttendanceRecord, AttendanceRecordSchema, PaymentRecord, PaymentRecordSchema,
   MemorizationLog, MemorizationLogSchema, EduStudentRef, EduStudentRefSchema,
 } from "../../schemas";
@@ -14,6 +15,7 @@ import { ReportsController } from "./reports.controller";
       { name: Group.name, schema: GroupSchema },
       { name: EduGroup.name, schema: EduGroupSchema },
       { name: Student.name, schema: StudentSchema },
+      { name: Teacher.name, schema: TeacherSchema },
       { name: AttendanceRecord.name, schema: AttendanceRecordSchema },
       { name: PaymentRecord.name, schema: PaymentRecordSchema },
       { name: MemorizationLog.name, schema: MemorizationLogSchema },

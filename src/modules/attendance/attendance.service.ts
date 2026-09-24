@@ -44,8 +44,9 @@ export class AttendanceService {
     if (!studentId || !date || !status) throw new BadRequestException("studentId, date, status مطلوبة");
 
     if (user.role === "teacher") {
+      const groupIds = (user as any).groupIds || [];
       const student = await this.studentModel.findOne({ id: studentId }).lean();
-      if (!student || student.group_id !== user.groupId) {
+      if (!student || !groupIds.includes(student.group_id)) {
         throw new ForbiddenException("ليس لديك صلاحية لتسجيل حضور هذا الطالب");
       }
     }
@@ -64,8 +65,9 @@ export class AttendanceService {
     if (!date || !entries?.length) throw new BadRequestException("date و entries مطلوبة");
 
     if (user.role === "teacher") {
+      const groupIds = (user as any).groupIds || [];
       const studentIds = entries.map((e) => e.studentId);
-      const count = await this.studentModel.countDocuments({ id: { $in: studentIds }, group_id: user.groupId });
+      const count = await this.studentModel.countDocuments({ id: { $in: studentIds }, group_id: { $in: groupIds } });
       if (count !== studentIds.length) throw new ForbiddenException("بعض الطلاب لا ينتمون لمجموعتك");
     }
 
@@ -83,8 +85,9 @@ export class AttendanceService {
 
   async byStudent(user: CurrentUserPayload, studentId: string, from?: string, to?: string) {
     if (user.role === "teacher") {
+      const groupIds = (user as any).groupIds || [];
       const student = await this.studentModel.findOne({ id: studentId }).lean();
-      if (!student || student.group_id !== user.groupId) throw new ForbiddenException("ليس لديك صلاحية");
+      if (!student || !groupIds.includes(student.group_id)) throw new ForbiddenException("ليس لديك صلاحية");
     }
     const filter: any = { student_id: studentId };
     if (from || to) {
@@ -97,7 +100,8 @@ export class AttendanceService {
 
   async byGroup(user: CurrentUserPayload, groupId: string, date: string) {
     if (!date) throw new BadRequestException("date مطلوب");
-    if (user.role === "teacher" && user.groupId !== groupId) throw new ForbiddenException("ليس لديك صلاحية");
+    const groupIds = (user as any).groupIds || [];
+    if (user.role === "teacher" && !groupIds.includes(groupId)) throw new ForbiddenException("ليس لديك صلاحية");
 
     const students = await this.studentModel.find({ group_id: groupId }).lean();
     const studentIds = students.map((s) => s.id);
@@ -109,8 +113,9 @@ export class AttendanceService {
 
   async rate(user: CurrentUserPayload, studentId: string) {
     if (user.role === "teacher") {
+      const groupIds = (user as any).groupIds || [];
       const student = await this.studentModel.findOne({ id: studentId }).lean();
-      if (!student || student.group_id !== user.groupId) throw new ForbiddenException("ليس لديك صلاحية");
+      if (!student || !groupIds.includes(student.group_id)) throw new ForbiddenException("ليس لديك صلاحية");
     }
     const rows = await this.attendanceModel.find({ student_id: studentId }).lean();
     const total = rows.length;

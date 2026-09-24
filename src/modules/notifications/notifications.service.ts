@@ -23,7 +23,8 @@ export class NotificationsService {
   private buildTargetFilter(user: CurrentUserPayload) {
     const or: any[] = [{ target: "all" }];
     if (user.role === "teacher") or.push({ target: "teachers" });
-    if (user.groupId) or.push({ target: user.groupId });
+    const groupIds = (user as any).groupIds || [];
+    if (groupIds.length) groupIds.forEach((gid: string) => or.push({ target: gid }));
     if (user.eduGroupId) or.push({ target: user.eduGroupId });
     if (user.role === "student" && user.studentId) or.push({ target: `student:${user.studentId}` });
     if (user.role === "teacher" && user.username) or.push({ target: `teacher:${user.username}` });

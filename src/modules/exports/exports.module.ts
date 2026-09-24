@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
 import {
-  Settings, SettingsSchema, Student, StudentSchema, Group, GroupSchema, EduGroup, EduGroupSchema,
+  Settings, SettingsSchema, Teacher, TeacherSchema, Student, StudentSchema, Group, GroupSchema, EduGroup, EduGroupSchema,
   PaymentRecord, PaymentRecordSchema, AttendanceRecord, AttendanceRecordSchema,
   MemorizationLog, MemorizationLogSchema, TeacherSalaryConfig, TeacherSalaryConfigSchema,
   TeacherSalaryRecord, TeacherSalaryRecordSchema, Competition, CompetitionSchema,
@@ -14,6 +14,7 @@ import { ExportsController } from "./exports.controller";
   imports: [
     MongooseModule.forFeature([
       { name: Settings.name, schema: SettingsSchema },
+      { name: Teacher.name, schema: TeacherSchema },
       { name: Student.name, schema: StudentSchema },
       { name: Group.name, schema: GroupSchema },
       { name: EduGroup.name, schema: EduGroupSchema },

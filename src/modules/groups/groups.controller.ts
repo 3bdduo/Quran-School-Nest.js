@@ -17,6 +17,12 @@ export class GroupsController {
     return this.groupsService.findAll();
   }
 
+  @Get("mine")
+  @Roles("teacher")
+  findMine(@CurrentUser() user: CurrentUserPayload) {
+    return this.groupsService.findMine(user);
+  }
+
   @Get(":id")
   findOne(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload) {
     return this.groupsService.findOne(id, user);

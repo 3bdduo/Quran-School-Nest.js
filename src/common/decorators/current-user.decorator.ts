@@ -3,7 +3,9 @@ import { createParamDecorator, ExecutionContext } from "@nestjs/common";
 export interface CurrentUserPayload {
   role: "admin" | "teacher" | "student";
   username: string;
-  groupId?: string | null;
+  teacherId?: string | null;
+  groupIds?: string[];
+  groupId?: string | null; // For legacy
   eduGroupId?: string | null;
   studentId?: string | null;
 }

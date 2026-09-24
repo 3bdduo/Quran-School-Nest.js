@@ -16,7 +16,8 @@ export class PaymentsService {
   async byStudent(user: CurrentUserPayload, studentId: string) {
     const student = await this.studentModel.findOne({ id: studentId }).lean();
     if (!student) throw new NotFoundException("الطالب غير موجود");
-    if (user.role === "teacher" && student.group_id !== user.groupId) throw new ForbiddenException("ليس لديك صلاحية");
+    const groupIds = (user as any).groupIds || [];
+    if (user.role === "teacher" && !groupIds.includes(student.group_id)) throw new ForbiddenException("ليس لديك صلاحية");
 
     const records = await this.paymentModel.find({ student_id: studentId }).lean();
     const months: any = {};
@@ -58,7 +59,8 @@ export class PaymentsService {
   }
 
   async byGroup(user: CurrentUserPayload, groupId: string, monthKey: string) {
-    if (user.role === "teacher" && user.groupId !== groupId) throw new ForbiddenException("ليس لديك صلاحية");
+    const groupIds = (user as any).groupIds || [];
+    if (user.role === "teacher" && !groupIds.includes(groupId)) throw new ForbiddenException("ليس لديك صلاحية");
     const students = await this.studentModel.find({ group_id: groupId }).lean();
     const studentIds = students.map((s) => s.id);
     const payments = await this.paymentModel.find({ student_id: { $in: studentIds }, month_key: monthKey }).lean();

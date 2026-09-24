@@ -1,10 +1,9 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
-import * as bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
 import {
-  Group, Student, AttendanceRecord, MemorizationLog, PaymentRecord,
+  Group, Teacher, Student, AttendanceRecord, MemorizationLog, PaymentRecord,
   EduStudentRef, EduAttendanceRecord, ExamRecord, CompetitionParticipant, CompetitionResult,
 } from "../../schemas";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -14,6 +13,7 @@ import { CurrentUserPayload } from "../../common/decorators/current-user.decorat
 export class GroupsService {
   constructor(
     @InjectModel(Group.name) private readonly groupModel: Model<Group>,
+    @InjectModel(Teacher.name) private readonly teacherModel: Model<Teacher>,
     @InjectModel(Student.name) private readonly studentModel: Model<Student>,
     @InjectModel(AttendanceRecord.name) private readonly attendanceModel: Model<AttendanceRecord>,
     @InjectModel(MemorizationLog.name) private readonly memorizationModel: Model<MemorizationLog>,
@@ -30,61 +30,121 @@ export class GroupsService {
     const groups = await this.groupModel.find().sort({ name: 1 }).lean();
     const counts = await this.studentModel.aggregate([{ $group: { _id: "$group_id", count: { $sum: 1 } } }]);
     const countMap = Object.fromEntries(counts.map((c) => [c._id, c.count]));
+
+    // جلب بيانات المعلمين
+    const teacherIds = groups.map((g) => g.teacher_id).filter(Boolean) as string[];
+    const teachers = teacherIds.length
+      ? await this.teacherModel.find({ id: { $in: teacherIds } }).lean()
+      : [];
+    const teacherMap = Object.fromEntries(teachers.map((t) => [t.id, t]));
+
+    return groups.map((g) => {
+      const teacher = g.teacher_id ? teacherMap[g.teacher_id] : null;
+      return {
+        id: g.id,
+        name: g.name,
+        teacherId: g.teacher_id || null,
+        teacherName: teacher?.full_name || null,
+        teacherUsername: teacher?.username || null,
+        studentsCount: countMap[g.id] || 0,
+      };
+    });
+  }
+
+  async findMine(user: CurrentUserPayload) {
+    const groupIds: string[] = (user as any).groupIds || [];
+    if (!groupIds.length) return [];
+    
+    const groups = await this.groupModel.find({ id: { $in: groupIds } }).sort({ name: 1 }).lean();
+    const counts = await this.studentModel.aggregate([
+      { $match: { group_id: { $in: groupIds } } },
+      { $group: { _id: "$group_id", count: { $sum: 1 } } }
+    ]);
+    const countMap = Object.fromEntries(counts.map((c) => [c._id, c.count]));
+
     return groups.map((g) => ({
-      id: g.id, name: g.name, teacherUsername: g.teacher_username, studentsCount: countMap[g.id] || 0,
+      id: g.id,
+      name: g.name,
+      teacherId: g.teacher_id || null,
+      studentsCount: countMap[g.id] || 0,
     }));
   }
 
   async findOne(id: string, user: CurrentUserPayload) {
-    if (user.role === "teacher" && user.groupId !== id) throw new ForbiddenException("ليس لديك صلاحية");
+    const groupIds: string[] = (user as any).groupIds || [];
+    if (user.role === "teacher" && !groupIds.includes(id)) {
+      throw new ForbiddenException("ليس لديك صلاحية");
+    }
     const g = await this.groupModel.findOne({ id }).lean();
     if (!g) throw new NotFoundException("المجموعة غير موجودة");
     const students = await this.studentModel.find({ group_id: id }).lean();
-    return { id: g.id, name: g.name, teacherUsername: g.teacher_username, students };
+    const teacher = g.teacher_id
+      ? await this.teacherModel.findOne({ id: g.teacher_id }).lean()
+      : null;
+    return {
+      id: g.id,
+      name: g.name,
+      teacherId: g.teacher_id || null,
+      teacherName: teacher?.full_name || null,
+      teacherUsername: teacher?.username || null,
+      students,
+    };
   }
 
-  async create(body: { name: string; teacherUsername: string; teacherPassword: string }) {
-    if (!body.name || !body.teacherUsername || !body.teacherPassword) {
-      throw new ConflictException("جميع الحقول مطلوبة");
-    }
+  async create(body: { name: string; teacherId?: string }) {
+    if (!body.name) throw new ConflictException("اسم الحلقة مطلوب");
     const id = uuidv4();
-    const hashed = await bcrypt.hash(body.teacherPassword, 10);
-    try {
-      await this.groupModel.create({ id, name: body.name, teacher_username: body.teacherUsername, teacher_password: hashed });
-    } catch (err: any) {
-      if (err.code === 11000) throw new ConflictException("اسم المستخدم موجود بالفعل");
-      throw err;
+
+    // التحقق من وجود المعلم إذا تم تحديده
+    if (body.teacherId) {
+      const teacher = await this.teacherModel.findOne({ id: body.teacherId }).lean();
+      if (!teacher) throw new NotFoundException("المعلم غير موجود");
     }
 
-    // أوتوميشن: نبعت إشعار ترحيبي للمدرس الجديد أوتوماتيك
-    await this.notificationsService.notifyTeacher(
-      body.teacherUsername,
-      "تم إنشاء حساب حلقتك",
-      `تم إنشاء حلقة "${body.name}" وربطها بحسابك. يمكنك تسجيل الدخول الآن.`,
-    );
+    await this.groupModel.create({ id, name: body.name, teacher_id: body.teacherId || null });
 
-    return { id, name: body.name, teacherUsername: body.teacherUsername };
+    if (body.teacherId) {
+      const teacher = await this.teacherModel.findOne({ id: body.teacherId }).lean();
+      if (teacher) {
+        await this.notificationsService.notifyTeacher(
+          teacher.username,
+          "تم إنشاء حلقتك",
+          `تم إنشاء حلقة "${body.name}" وربطها بحسابك.`,
+        );
+      }
+    }
+
+    return { id, name: body.name, teacherId: body.teacherId || null };
   }
 
-  async update(id: string, user: CurrentUserPayload, body: { name?: string; teacherUsername?: string; teacherPassword?: string }) {
-    if (user.role === "teacher" && user.groupId !== id) throw new ForbiddenException("ليس لديك صلاحية");
+  async update(id: string, user: CurrentUserPayload, body: { name?: string; teacherId?: string }) {
+    const groupIds: string[] = (user as any).groupIds || [];
+    if (user.role === "teacher" && !groupIds.includes(id)) {
+      throw new ForbiddenException("ليس لديك صلاحية");
+    }
 
     const update: any = {};
     if (user.role === "admin" && body.name) update.name = body.name;
-    if (body.teacherUsername) update.teacher_username = body.teacherUsername;
-    if (body.teacherPassword) update.teacher_password = await bcrypt.hash(body.teacherPassword, 10);
+    if (user.role === "admin" && body.teacherId !== undefined) {
+      update.teacher_id = body.teacherId || null;
+    }
 
     if (Object.keys(update).length === 0) throw new ConflictException("لا يوجد بيانات للتحديث");
 
-    let g;
-    try {
-      g = await this.groupModel.findOneAndUpdate({ id }, update, { new: true }).lean();
-    } catch (err: any) {
-      if (err.code === 11000) throw new ConflictException("اسم المستخدم موجود بالفعل");
-      throw err;
-    }
+    const g = await this.groupModel.findOneAndUpdate({ id }, update, { new: true }).lean();
     if (!g) throw new NotFoundException("المجموعة غير موجودة");
-    return { id: g.id, name: g.name, teacherUsername: g.teacher_username };
+
+    const teacher = g.teacher_id
+      ? await this.teacherModel.findOne({ id: g.teacher_id }).lean()
+      : null;
+
+    return {
+      id: g.id,
+      name: g.name,
+      teacherId: g.teacher_id || null,
+      teacherName: teacher?.full_name || null,
+      teacherUsername: teacher?.username || null,
+    };
   }
 
   async remove(id: string) {

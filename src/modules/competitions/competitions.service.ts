@@ -68,7 +68,8 @@ export class CompetitionsService {
     if (user.role !== "teacher") return;
     const student = await this.studentModel.findOne({ id: studentId }).lean();
     if (!student) throw new NotFoundException("الطالب غير موجود");
-    const isRegular = student.group_id === user.groupId;
+    const groupIds = (user as any).groupIds || [];
+    const isRegular = groupIds.includes(student.group_id);
     let isEdu = false;
     if (user.eduGroupId) {
       const ref = await this.eduStudentRefModel.findOne({ edu_group_id: user.eduGroupId, student_id: studentId }).lean();

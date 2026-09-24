@@ -6,6 +6,7 @@ import configuration from "./config/configuration";
 
 import { AuthModule } from "./modules/auth/auth.module";
 import { SettingsModule } from "./modules/settings/settings.module";
+import { TeachersModule } from "./modules/teachers/teachers.module";
 import { GroupsModule } from "./modules/groups/groups.module";
 import { EduGroupsModule } from "./modules/edu-groups/edu-groups.module";
 import { StudentsModule } from "./modules/students/students.module";
@@ -21,6 +22,10 @@ import { SalariesModule } from "./modules/salaries/salaries.module";
 import { ReportsModule } from "./modules/reports/reports.module";
 import { ExportsModule } from "./modules/exports/exports.module";
 import { HealthModule } from "./modules/health/health.module";
+import { BlogModule } from "./modules/blog/blog.module";
+import { MediaLibraryModule } from "./modules/media-library/media-library.module";
+import { TeacherProfilesModule } from "./modules/teacher-profiles/teacher-profiles.module";
+import { ContactModule } from "./modules/contact/contact.module";
 import { SeedModule } from "./seed/seed.module";
 
 @Module({
@@ -39,6 +44,7 @@ import { SeedModule } from "./seed/seed.module";
 
     AuthModule,
     SettingsModule,
+    TeachersModule,
     GroupsModule,
     EduGroupsModule,
     StudentsModule,
@@ -52,6 +58,10 @@ import { SeedModule } from "./seed/seed.module";
     ReportsModule,
     ExportsModule,
     HealthModule,
+    BlogModule,
+    MediaLibraryModule,
+    TeacherProfilesModule,
+    ContactModule,
     SeedModule,
   ],
 })

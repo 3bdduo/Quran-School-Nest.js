@@ -4,7 +4,7 @@ import { Document } from "mongoose";
 @Schema({ timestamps: { createdAt: false, updatedAt: "updated_at" }, versionKey: false })
 export class Settings extends Document {
   @Prop({ type: Number, default: 1 })
-  _id: number;
+  _id: any;
 
   @Prop({ type: String, default: "مدرسة التربية بالقرءان الكريم" })
   school_name: string;

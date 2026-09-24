@@ -18,9 +18,16 @@ export class ExportsController {
 
   @Get("students.xlsx")
   @LogAction("تصدير كشف الطلاب إلى إكسل")
-  async studentsExcel(@Res() res: Response) {
-    const buffer = await this.service.studentsExcel();
+  async studentsExcel(@Query("groupId") groupId: string, @Res() res: Response) {
+    const buffer = await this.service.studentsExcel(groupId);
     this.sendXlsx(res, buffer, "كشف-الطلاب.xlsx");
+  }
+
+  @Get("teachers.xlsx")
+  @LogAction("تصدير كشف المعلمين إلى إكسل")
+  async teachersExcel(@Res() res: Response) {
+    const buffer = await this.service.teachersExcel();
+    this.sendXlsx(res, buffer, "كشف-المعلمين.xlsx");
   }
 
   @Get("students/:id.docx")

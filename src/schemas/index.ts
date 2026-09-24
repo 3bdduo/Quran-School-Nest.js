@@ -1,4 +1,5 @@
 export * from "./settings.schema";
+export * from "./teacher.schema";
 export * from "./group.schema";
 export * from "./edu-group.schema";
 export * from "./student.schema";
@@ -20,3 +21,4 @@ export * from "./blog-post.schema";
 export * from "./media-item.schema";
 export * from "./teacher-profile.schema";
 export * from "./contact-message.schema";
+

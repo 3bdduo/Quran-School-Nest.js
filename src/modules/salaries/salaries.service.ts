@@ -1,32 +1,62 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
-import { TeacherSalaryConfig, TeacherSalaryRecord } from "../../schemas";
+import { Teacher, TeacherSalaryConfig, TeacherSalaryRecord } from "../../schemas";
 import { NotificationsService } from "../notifications/notifications.service";
 
 @Injectable()
 export class SalariesService {
   constructor(
+    @InjectModel(Teacher.name) private readonly teacherModel: Model<Teacher>,
     @InjectModel(TeacherSalaryConfig.name) private readonly configModel: Model<TeacherSalaryConfig>,
     @InjectModel(TeacherSalaryRecord.name) private readonly recordModel: Model<TeacherSalaryRecord>,
     private readonly notificationsService: NotificationsService,
   ) {}
 
+  private computeNet(base: number, incentive: number, deduction: number) {
+    return Math.max(0, (base || 0) + (incentive || 0) - (deduction || 0));
+  }
+
   async allTeachers() {
-    const rows = await this.configModel.find().lean();
-    return rows.map((r) => ({ username: r.teacher_username, base_salary: r.base_salary, notes: r.notes }));
+    const teachers = await this.teacherModel.find().lean();
+    const configs = await this.configModel.find().lean();
+    const configMap = Object.fromEntries(configs.map((c) => [c.teacher_username, c]));
+    return teachers.map((t) => {
+      const cfg = configMap[t.username];
+      return {
+        id: t.id,
+        username: t.username,
+        full_name: t.full_name,
+        national_id: t.national_id,
+        base_salary: cfg?.base_salary || 0,
+        notes: cfg?.notes || null,
+      };
+    });
   }
 
   async oneTeacher(username: string) {
-    const row = await this.configModel.findOne({ teacher_username: username }).lean();
-    if (!row) throw new NotFoundException("المعلم غير موجود");
-    return { username: row.teacher_username, base_salary: row.base_salary, notes: row.notes };
+    const teacher = await this.teacherModel.findOne({ username }).lean();
+    if (!teacher) throw new NotFoundException("المعلم غير موجود");
+    const cfg = await this.configModel.findOne({ teacher_username: username }).lean();
+    return {
+      id: teacher.id,
+      username: teacher.username,
+      full_name: teacher.full_name,
+      national_id: teacher.national_id,
+      base_salary: cfg?.base_salary || 0,
+      notes: cfg?.notes || null,
+    };
   }
 
   async me(username: string) {
-    const row = await this.configModel.findOne({ teacher_username: username }).lean();
-    if (!row) return { username, base_salary: 0, notes: null };
-    return { username: row.teacher_username, base_salary: row.base_salary, notes: row.notes };
+    const cfg = await this.configModel.findOne({ teacher_username: username }).lean();
+    const teacher = await this.teacherModel.findOne({ username }).lean();
+    return {
+      username,
+      full_name: teacher?.full_name || username,
+      base_salary: cfg?.base_salary || 0,
+      notes: cfg?.notes || null,
+    };
   }
 
   async setConfig(username: string, baseSalary: number, notes?: string) {
@@ -43,47 +73,80 @@ export class SalariesService {
   }
 
   async byMonth(monthKey: string) {
+    const teachers = await this.teacherModel.find().lean();
     const configs = await this.configModel.find().lean();
     const records = await this.recordModel.find({ month_key: monthKey }).lean();
+    const configMap = Object.fromEntries(configs.map((c) => [c.teacher_username, c]));
     const recordMap = Object.fromEntries(records.map((r) => [r.teacher_username, r]));
 
-    const teachers = configs.map((c) => {
-      const rec: any = recordMap[c.teacher_username];
+    const result = teachers.map((t) => {
+      const cfg = configMap[t.username];
+      const rec: any = recordMap[t.username];
+      const base = cfg?.base_salary || 0;
+      const incentive = rec?.incentive_amount || 0;
+      const deduction = rec?.deduction_amount || 0;
+      const net = this.computeNet(base, incentive, deduction);
       return {
-        username: c.teacher_username, baseSalary: c.base_salary,
-        status: rec?.status || "unpaid", amount: rec?.amount || 0,
-        paidDate: rec?.paid_date || null, paidBy: rec?.paid_by || null,
+        id: t.id,
+        username: t.username,
+        full_name: t.full_name,
+        national_id: t.national_id,
+        baseSalary: base,
+        incentiveAmount: incentive,
+        incentiveReason: rec?.incentive_reason || null,
+        deductionAmount: deduction,
+        deductionReason: rec?.deduction_reason || null,
+        netSalary: net,
+        status: rec?.status || "unpaid",
+        amount: rec?.amount || 0,
+        paidDate: rec?.paid_date || null,
+        paidBy: rec?.paid_by || null,
+        note: rec?.note || null,
       };
     });
 
     return {
-      monthKey, totalTeachers: teachers.length,
-      paidCount: teachers.filter((t) => t.status === "paid").length,
-      unpaidCount: teachers.filter((t) => t.status === "unpaid").length,
-      advanceCount: teachers.filter((t) => t.status === "advance").length,
-      totalPaidAmount: teachers.reduce((sum, t) => sum + (t.status === "paid" ? Number(t.amount) : 0), 0),
-      teachers,
+      monthKey,
+      totalTeachers: result.length,
+      paidCount: result.filter((t) => t.status === "paid").length,
+      unpaidCount: result.filter((t) => t.status === "unpaid").length,
+      advanceCount: result.filter((t) => t.status === "advance").length,
+      totalPaidAmount: result.reduce((s, t) => s + (t.status === "paid" ? Number(t.amount) : 0), 0),
+      teachers: result,
     };
   }
 
   async setMonth(username: string, monthKey: string, body: any) {
     const config = await this.configModel.findOne({ teacher_username: username }).lean();
     const baseSalary = config?.base_salary || 0;
+    const incentiveAmount = Number(body.incentiveAmount) || 0;
+    const deductionAmount = Number(body.deductionAmount) || 0;
+    const netSalary = this.computeNet(baseSalary, incentiveAmount, deductionAmount);
 
     const record = await this.recordModel.findOneAndUpdate(
       { teacher_username: username, month_key: monthKey },
       {
-        teacher_username: username, month_key: monthKey, status: body.status, amount: body.amount,
-        base_salary: baseSalary, paid_date: body.paidDate || null, note: body.note || null, paid_by: body.paidBy || null,
+        teacher_username: username,
+        month_key: monthKey,
+        status: body.status,
+        base_salary: baseSalary,
+        incentive_amount: incentiveAmount,
+        incentive_reason: body.incentiveReason || null,
+        deduction_amount: deductionAmount,
+        deduction_reason: body.deductionReason || null,
+        net_salary: netSalary,
+        amount: body.amount ?? netSalary,
+        paid_date: body.paidDate || null,
+        note: body.note || null,
+        paid_by: body.paidBy || null,
       },
       { upsert: true, new: true },
     ).lean();
 
-    // أوتوميشن: إشعار المدرس أوتوماتيك لما راتبه يتسجل مدفوع
     if (body.status === "paid") {
       await this.notificationsService.notifyTeacher(
         username, "تم صرف راتبك",
-        `تم صرف راتب شهر ${monthKey} بمبلغ ${body.amount ?? baseSalary} جنيه.`,
+        `تم صرف راتب شهر ${monthKey}. الراتب الأساسي: ${baseSalary} | الحافز: ${incentiveAmount} | الخصم: ${deductionAmount} | الصافي: ${netSalary} جنيه.`,
       );
     }
 

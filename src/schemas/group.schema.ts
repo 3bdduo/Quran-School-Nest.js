@@ -9,11 +9,9 @@ export class Group extends Document {
   @Prop({ type: String, required: true })
   name: string;
 
-  @Prop({ type: String, required: true, unique: true })
-  teacher_username: string;
-
-  @Prop({ type: String, required: true })
-  teacher_password: string;
+  // teacher_id references Teacher.id (nullable — حلقة ممكن تكون بدون معلم مؤقتاً)
+  @Prop({ type: String, default: null })
+  teacher_id?: string;
 }
 
 export const GroupSchema = SchemaFactory.createForClass(Group);

@@ -13,10 +13,25 @@ export class TeacherSalaryRecord extends Document {
   status: string;
 
   @Prop({ type: Number, default: 0 })
-  amount: number;
+  base_salary: number;
 
   @Prop({ type: Number, default: 0 })
-  base_salary: number;
+  incentive_amount: number; // الحافز
+
+  @Prop({ type: String })
+  incentive_reason?: string; // سبب الحافز
+
+  @Prop({ type: Number, default: 0 })
+  deduction_amount: number; // الخصم
+
+  @Prop({ type: String })
+  deduction_reason?: string; // سبب الخصم
+
+  @Prop({ type: Number, default: 0 })
+  net_salary: number; // الراتب الكلي = الأساسي + الحافز - الخصم
+
+  @Prop({ type: Number, default: 0 })
+  amount: number; // المبلغ الفعلي المدفوع
 
   @Prop({ type: String })
   paid_date?: string;
@@ -30,3 +45,4 @@ export class TeacherSalaryRecord extends Document {
 
 export const TeacherSalaryRecordSchema = SchemaFactory.createForClass(TeacherSalaryRecord);
 TeacherSalaryRecordSchema.index({ teacher_username: 1, month_key: 1 }, { unique: true });
+
