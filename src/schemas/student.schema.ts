@@ -24,6 +24,9 @@ export class Student extends Document {
   @Prop({ type: String, default: "0" })
   memorized_amount: string;
 
+  @Prop({ type: String, default: "غير محدد" })
+  current_surah: string;
+
   @Prop({ type: String, required: true })
   group_id: string;
 

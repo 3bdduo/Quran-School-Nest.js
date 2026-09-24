@@ -13,7 +13,40 @@ import { CurrentUserPayload } from "../../common/decorators/current-user.decorat
 const FIELD_MAP: Record<string, string> = {
   name: "name", phone: "phone", memorizedAmount: "memorized_amount", notes: "notes",
   groupId: "group_id", dateOfBirth: "date_of_birth", age: "age", nationalId: "national_id",
+  currentSurah: "current_surah",
 };
+
+// ============================================================
+// خوارزمية استخراج تاريخ الميلاد والسن من الرقم القومي المصري
+// ============================================================
+function extractDataFromNationalId(nationalId: string) {
+  if (!nationalId || nationalId.length !== 14) return { dateOfBirth: "غير محدد", age: 0 };
+  
+  const centuryCode = nationalId.charAt(0);
+  const yearStr = nationalId.substring(1, 3);
+  const monthStr = nationalId.substring(3, 5);
+  const dayStr = nationalId.substring(5, 7);
+  
+  // 2 = 1900s, 3 = 2000s
+  const century = centuryCode === "2" ? 1900 : centuryCode === "3" ? 2000 : 1900;
+  const year = century + parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+  const day = parseInt(dayStr, 10);
+  
+  if (isNaN(year) || isNaN(month) || isNaN(day)) return { dateOfBirth: "غير محدد", age: 0 };
+  
+  const dateOfBirth = `${year}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
+  
+  const today = new Date();
+  const dob = new Date(year, month - 1, day);
+  let age = today.getFullYear() - dob.getFullYear();
+  const m = today.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+    age--;
+  }
+  
+  return { dateOfBirth, age: Math.max(0, age) };
+}
 
 @Injectable()
 export class StudentsService {
@@ -97,8 +130,8 @@ export class StudentsService {
       }
     }
 
-    if (!groupId || !body.name || !body.nationalId || !body.dateOfBirth || !body.age) {
-      throw new ConflictException("الحقول المطلوبة: groupId, name, nationalId, dateOfBirth, age");
+    if (!groupId || !body.name || !body.nationalId || body.nationalId.length !== 14) {
+      throw new ConflictException("الحقول المطلوبة: groupId, name, nationalId (14 رقم)");
     }
 
     const settings = await this.settingsModel.findById(1).lean();
@@ -107,11 +140,15 @@ export class StudentsService {
     const id = uuidv4();
     const hashedPassword = body.password ? await bcrypt.hash(body.password, 10) : null;
 
+    const { dateOfBirth, age } = extractDataFromNationalId(body.nationalId);
+
     try {
       await this.studentModel.create({
         id, group_id: groupId, name: body.name, national_id: body.nationalId,
-        date_of_birth: body.dateOfBirth, age: body.age, phone: body.phone || null,
-        memorized_amount: body.memorizedAmount || "0", notes: body.notes || null,
+        date_of_birth: dateOfBirth, age, phone: body.phone || null,
+        memorized_amount: body.memorizedAmount || "0", 
+        current_surah: body.currentSurah || "غير محدد",
+        notes: body.notes || null,
         password: hashedPassword, monthly_fee: monthlyFee,
       });
     } catch (err: any) {
@@ -138,6 +175,13 @@ export class StudentsService {
     const update: any = {};
     for (const [camel, snake] of Object.entries(FIELD_MAP)) {
       if (body[camel] !== undefined) update[snake] = body[camel];
+    }
+    
+    // إعادة الحساب لو اتغير الرقم القومي
+    if (body.nationalId) {
+      const { dateOfBirth, age } = extractDataFromNationalId(body.nationalId);
+      update.date_of_birth = dateOfBirth;
+      update.age = age;
     }
 
     if (user.role === "teacher") {
