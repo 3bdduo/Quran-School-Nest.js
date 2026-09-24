@@ -9,9 +9,6 @@ export class ContactMessage extends Document {
   @Prop({ type: String, required: true })
   name: string;
 
-  @Prop({ type: String, required: true })
-  email: string;
-
   @Prop({ type: String })
   phone?: string;
 

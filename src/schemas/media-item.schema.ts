@@ -18,7 +18,7 @@ export class MediaItem extends Document {
   @Prop({ type: String })
   thumbnail_url?: string;
 
-  @Prop({ type: String, enum: ["تحفيظ", "تفسير وتجويد", "علوم شرعية", "لغة عربية"], required: true })
+  @Prop({ type: String, enum: ["تحفيظ", "تفسير وتجويد", "علوم شرعية"], required: true })
   track: string;
 
   @Prop({ type: String })

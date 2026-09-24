@@ -13,7 +13,7 @@ import { CurrentUserPayload } from "../../common/decorators/current-user.decorat
 const FIELD_MAP: Record<string, string> = {
   name: "name", phone: "phone", memorizedAmount: "memorized_amount", notes: "notes",
   groupId: "group_id", dateOfBirth: "date_of_birth", age: "age", nationalId: "national_id",
-  currentSurah: "current_surah",
+  currentSurah: "current_surah", parentName: "parent_name",
 };
 
 // ============================================================
@@ -130,8 +130,11 @@ export class StudentsService {
       }
     }
 
-    if (!groupId || !body.name || !body.nationalId || body.nationalId.length !== 14) {
-      throw new ConflictException("الحقول المطلوبة: groupId, name, nationalId (14 رقم)");
+    if (!body.name || !body.nationalId || body.nationalId.length !== 14) {
+      throw new ConflictException("الحقول المطلوبة: name, nationalId (14 رقم)");
+    }
+    if (!groupId && user.role !== "admin" && !body.isWaiting) {
+      throw new ConflictException("الحقل المطلوب: groupId");
     }
 
     const settings = await this.settingsModel.findById(1).lean();
@@ -144,12 +147,14 @@ export class StudentsService {
 
     try {
       await this.studentModel.create({
-        id, group_id: groupId, name: body.name, national_id: body.nationalId,
+        id, group_id: groupId || "waiting", name: body.name, national_id: body.nationalId,
+        parent_name: body.parentName || null,
         date_of_birth: dateOfBirth, age, phone: body.phone || null,
         memorized_amount: body.memorizedAmount || "0", 
         current_surah: body.currentSurah || "غير محدد",
         notes: body.notes || null,
         password: hashedPassword, monthly_fee: monthlyFee,
+        is_waiting: !!body.isWaiting,
       });
     } catch (err: any) {
       if (err.code === 11000) throw new ConflictException("الرقم القومي موجود بالفعل");
@@ -165,10 +170,64 @@ export class StudentsService {
     }
     await this.paymentModel.insertMany(paymentDocs, { ordered: false }).catch(() => undefined);
 
-    // أوتوميشن: نبلّغ حلقة الطالب (المدرس) بتسجيل طالب جديد أوتوماتيك
-    await this.notificationsService.notifyGroup(groupId, "طالب جديد", `تم تسجيل الطالب "${body.name}" في الحلقة.`);
+    // بلّغ الحلقة لو مش في الانتظار
+    if (groupId && !body.isWaiting) {
+      await this.notificationsService.notifyGroup(groupId, "طالب جديد", `تم تسجيل الطالب "${body.name}" في الحلقة.`);
+    }
 
     return this.studentModel.findOne({ id }).lean();
+  }
+
+  // تسجيل ذاتي من الموقع (يذهب لقائمة الانتظار)
+  async publicRegister(body: {
+    name: string; parentName: string; phone: string; age: string; nationalId: string; notes?: string;
+  }) {
+    if (!body.name || !body.parentName || !body.phone || !body.nationalId || body.nationalId.length !== 14) {
+      throw new ConflictException("الحقول المطلوبة: name, parentName, phone, nationalId (14 رقم)");
+    }
+
+    const settings = await this.settingsModel.findById(1).lean();
+    const monthlyFee = settings?.monthly_fee || 200;
+
+    const id = uuidv4();
+    const { dateOfBirth, age } = extractDataFromNationalId(body.nationalId);
+
+    try {
+      await this.studentModel.create({
+        id, group_id: "waiting", name: body.name,
+        national_id: body.nationalId, parent_name: body.parentName,
+        date_of_birth: dateOfBirth, age: age || parseInt(body.age) || 0,
+        phone: body.phone, notes: body.notes || null,
+        memorized_amount: "0", current_surah: "غير محدد",
+        monthly_fee: monthlyFee, is_waiting: true,
+      });
+    } catch (err: any) {
+      if (err.code === 11000) throw new ConflictException("الرقم القومي موجود بالفعل");
+      throw err;
+    }
+
+    return { message: "تم استلام طلب التسجيل بنجاح", studentId: id };
+  }
+
+  // نقل طالب من الانتظار لمجموعة
+  async moveFromWaiting(studentId: string, groupId: string) {
+    if (!groupId) throw new ConflictException("groupId مطلوب");
+    const student = await this.studentModel.findOne({ id: studentId }).lean();
+    if (!student) throw new NotFoundException("الطالب غير موجود");
+
+    await this.studentModel.findOneAndUpdate(
+      { id: studentId },
+      { group_id: groupId, is_waiting: false },
+      { new: true }
+    );
+
+    await this.notificationsService.notifyGroup(groupId, "طالب جديد", `تم إضافة الطالب "${student.name}" للحلقة من قائمة الانتظار.`);
+
+    return this.studentModel.findOne({ id: studentId }).lean();
+  }
+
+  async findWaiting() {
+    return this.studentModel.find({ is_waiting: true }).sort({ created_at: -1 }).lean();
   }
 
   async update(id: string, user: CurrentUserPayload, body: any) {

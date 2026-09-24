@@ -18,6 +18,14 @@ export class StudentsController {
     return this.studentsService.findAll(user, groupId);
   }
 
+  // قائمة الانتظار - الأدمن فقط
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin")
+  @Get("waiting")
+  findWaiting() {
+    return this.studentsService.findWaiting();
+  }
+
   // مسار عام (بدون توكن) عشان صفحة تسجيل دخول الطالب تتأكد من الرقم القومي
   @Public()
   @Get("by-national-id/:nationalId")
@@ -31,12 +39,29 @@ export class StudentsController {
     return this.studentsService.findOne(id, user);
   }
 
+  // تسجيل ذاتي من الموقع (بدون توكن)
+  @Public()
+  @Post("public-register")
+  @LogAction("تسجيل ذاتي من الموقع")
+  publicRegister(@Body() body: any) {
+    return this.studentsService.publicRegister(body);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("admin", "teacher")
   @Post()
   @LogAction("تسجيل طالب جديد")
   create(@CurrentUser() user: CurrentUserPayload, @Body() body: any) {
     return this.studentsService.create(user, body);
+  }
+
+  // نقل طالب من الانتظار لمجموعة
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin")
+  @Patch(":id/move-to-group")
+  @LogAction("نقل طالب من الانتظار")
+  moveFromWaiting(@Param("id") id: string, @Body("groupId") groupId: string) {
+    return this.studentsService.moveFromWaiting(id, groupId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

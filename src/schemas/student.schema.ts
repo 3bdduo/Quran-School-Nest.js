@@ -19,7 +19,13 @@ export class Student extends Document {
   age: number;
 
   @Prop({ type: String })
+  parent_name?: string;
+
+  @Prop({ type: String })
   phone?: string;
+
+  @Prop({ type: Boolean, default: false })
+  is_waiting: boolean;
 
   @Prop({ type: String, default: "0" })
   memorized_amount: string;

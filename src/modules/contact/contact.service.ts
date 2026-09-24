@@ -12,15 +12,15 @@ export class ContactService {
     private readonly notificationsService: NotificationsService,
   ) {}
 
-  async submit(body: { name: string; email: string; phone?: string; message: string }) {
-    if (!body.name || !body.email || !body.message) {
-      throw new BadRequestException("الاسم والبريد الإلكتروني والرسالة مطلوبين");
+  async submit(body: { name: string; phone?: string; message: string }) {
+    if (!body.name || !body.message) {
+      throw new BadRequestException("الاسم والرسالة مطلوبين");
     }
     const id = uuidv4();
-    await this.model.create({ id, name: body.name, email: body.email, phone: body.phone || null, message: body.message });
+    await this.model.create({ id, name: body.name, phone: body.phone || null, message: body.message });
 
     // أوتوميشن: نبلّغ الأدمن أوتوماتيك برسالة تواصل جديدة
-    await this.notificationsService.notifyAll("رسالة تواصل جديدة", `رسالة جديدة من ${body.name} (${body.email})`);
+    await this.notificationsService.notifyAll("رسالة تواصل جديدة", `رسالة جديدة من ${body.name} (${body.phone || "بدون رقم"})`);
 
     return { message: "تم إرسال رسالتك بنجاح، سنتواصل معك قريبًا بإذن الله" };
   }
