@@ -111,6 +111,14 @@ export class TeachersService {
         username,
         password: hashedPassword,
       });
+
+      // إنشاء حلقة افتراضية للمعلم بمجرد إنشائه
+      await this.groupModel.create({
+        id: uuidv4(),
+        name: `حلقة أ. ${dto.full_name.split(' ')[0]}`, // اسم افتراضي (حلقة أ. الاسم الأول)
+        teacher_id: id,
+      });
+
     } catch (err: any) {
       if (err.code === 11000) {
         const key = Object.keys(err.keyPattern || {})[0];
