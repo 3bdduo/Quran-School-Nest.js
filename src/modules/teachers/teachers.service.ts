@@ -128,30 +128,39 @@ export class TeachersService {
     return { id, full_name: dto.full_name, national_id: dto.national_id, username, phone: dto.phone, teacher_type: null };
   }
 
-  // بيتنادى بعد إنشاء المعلم مباشرة — الأدمن بيحدد هل المعلم ده "معلم حلقة" (بيقدر يكون عنده طلاب)
-  // أو "معلم عادي" (مينفعش يتضافله طلاب مباشرة). ممكن يتغيّر لاحقًا لأي نوع من الاتنين.
   async setType(id: string, type: "group" | "other") {
     if (type !== "group" && type !== "other") {
-      throw new BadRequestException("نوع المعلم غير صحيح");
+      throw new BadRequestException("نوع المعلم غير صحيح — يجب أن يكون 'group' أو 'other'");
     }
     const teacher = await this.teacherModel.findOne({ id }).lean();
     if (!teacher) throw new NotFoundException("المعلم غير موجود");
 
-    await this.teacherModel.updateOne({ id }, { teacher_type: type });
+    try {
+      await this.teacherModel.updateOne({ id }, { teacher_type: type });
 
-    // لو اتحول لـ "معلم حلقة" ومفيش حلقة ليه أصلاً — نعمله حلقة افتراضية عشان يقدر يستقبل طلاب فورًا
-    if (type === "group") {
-      const existingGroup = await this.groupModel.findOne({ teacher_id: id }).lean();
-      if (!existingGroup) {
-        await this.groupModel.create({
-          id: uuidv4(),
-          name: `حلقة أ. ${teacher.full_name.split(" ")[0]}`,
-          teacher_id: id,
-        });
+      // لو اتحول لـ "معلم حلقة" ومفيش حلقة ليه أصلاً — نعمله حلقة افتراضية عشان يقدر يستقبل طلاب فورًا
+      if (type === "group") {
+        const existingGroup = await this.groupModel.findOne({ teacher_id: id }).lean();
+        if (!existingGroup) {
+          const firstName = (teacher.full_name || "").split(" ")[0] || "المعلم";
+          await this.groupModel.create({
+            id: uuidv4(),
+            name: `حلقة أ. ${firstName}`,
+            teacher_id: id,
+          });
+        }
+      }
+      // لو اتحول لـ "معلم عادي": مبنمسحش حلقاته الموجودة تلقائيًا (تجنبًا لفقد بيانات طلاب موجودين فعلاً)،
+      // لكن مش هيقدر يتضافله حلقات/طلاب جداد لحد ما يترجع "معلم حلقة" تاني (متحقق منها في GroupsService).
+    } catch (err: any) {
+      // نرجع رسالة خطأ واضحة بدل "خطأ في السيرفر"
+      if (err?.code === 11000) {
+        // تعارض في unique index — الحلقة موجودة بالفعل برغم البحث (race condition نادر)
+        // نتجاهله لأن الهدف (وجود حلقة) تحقق
+      } else {
+        throw new BadRequestException(`فشل تحديد نوع المعلم: ${err?.message || "خطأ غير متوقع"}`);
       }
     }
-    // لو اتحول لـ "معلم عادي": مبنمسحش حلقاته الموجودة تلقائيًا (تجنبًا لفقد بيانات طلاب موجودين فعلاً)،
-    // لكن مش هيقدر يتضافله حلقات/طلاب جداد لحد ما يترجع "معلم حلقة" تاني (متحقق منها في GroupsService).
 
     return {
       id,
