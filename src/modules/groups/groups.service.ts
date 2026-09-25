@@ -93,10 +93,13 @@ export class GroupsService {
     if (!body.name) throw new ConflictException("اسم الحلقة مطلوب");
     const id = uuidv4();
 
-    // التحقق من وجود المعلم إذا تم تحديده
+    // التحقق من وجود المعلم إذا تم تحديده، ومن إنه فعلاً "معلم حلقة"
     if (body.teacherId) {
       const teacher = await this.teacherModel.findOne({ id: body.teacherId }).lean();
       if (!teacher) throw new NotFoundException("المعلم غير موجود");
+      if (teacher.teacher_type !== "group") {
+        throw new ConflictException('المعلم ده لازم يكون نوعه "معلم حلقة" الأول عشان يتربط بحلقة');
+      }
     }
 
     await this.groupModel.create({ id, name: body.name, teacher_id: body.teacherId || null });
@@ -113,6 +116,13 @@ export class GroupsService {
     const update: any = {};
     if (user.role === "admin" && body.name) update.name = body.name;
     if (user.role === "admin" && body.teacherId !== undefined) {
+      if (body.teacherId) {
+        const newTeacher = await this.teacherModel.findOne({ id: body.teacherId }).lean();
+        if (!newTeacher) throw new NotFoundException("المعلم غير موجود");
+        if (newTeacher.teacher_type !== "group") {
+          throw new ConflictException('المعلم ده لازم يكون نوعه "معلم حلقة" الأول عشان يتربط بحلقة');
+        }
+      }
       update.teacher_id = body.teacherId || null;
     }
 

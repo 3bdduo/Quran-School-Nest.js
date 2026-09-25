@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -65,6 +66,7 @@ export class TeachersService {
       national_id: t.national_id,
       phone: t.phone,
       username: t.username,
+      teacher_type: t.teacher_type ?? null,
       groups: groupsByTeacher[t.id] || [],
     }));
   }
@@ -79,6 +81,7 @@ export class TeachersService {
       national_id: teacher.national_id,
       phone: teacher.phone,
       username: teacher.username,
+      teacher_type: teacher.teacher_type ?? null,
       groups: groups.map((g) => ({ id: g.id, name: g.name })),
     };
   }
@@ -110,15 +113,9 @@ export class TeachersService {
         phone: dto.phone || null,
         username,
         password: hashedPassword,
+        teacher_type: null, // الأدمن بيحدد النوع بعد الإنشاء مباشرة (حلقة / غير حلقة)
       });
-
-      // إنشاء حلقة افتراضية للمعلم بمجرد إنشائه
-      await this.groupModel.create({
-        id: uuidv4(),
-        name: `حلقة أ. ${dto.full_name.split(' ')[0]}`, // اسم افتراضي (حلقة أ. الاسم الأول)
-        teacher_id: id,
-      });
-
+      // ملحوظة: مفيش حلقة بتتعمل تلقائي هنا دلوقتي — بتتعمل فقط لو الأدمن اختار النوع "group"
     } catch (err: any) {
       if (err.code === 11000) {
         const key = Object.keys(err.keyPattern || {})[0];
@@ -128,7 +125,39 @@ export class TeachersService {
       throw err;
     }
 
-    return { id, full_name: dto.full_name, national_id: dto.national_id, username, phone: dto.phone };
+    return { id, full_name: dto.full_name, national_id: dto.national_id, username, phone: dto.phone, teacher_type: null };
+  }
+
+  // بيتنادى بعد إنشاء المعلم مباشرة — الأدمن بيحدد هل المعلم ده "معلم حلقة" (بيقدر يكون عنده طلاب)
+  // أو "معلم عادي" (مينفعش يتضافله طلاب مباشرة). ممكن يتغيّر لاحقًا لأي نوع من الاتنين.
+  async setType(id: string, type: "group" | "other") {
+    if (type !== "group" && type !== "other") {
+      throw new BadRequestException("نوع المعلم غير صحيح");
+    }
+    const teacher = await this.teacherModel.findOne({ id }).lean();
+    if (!teacher) throw new NotFoundException("المعلم غير موجود");
+
+    await this.teacherModel.updateOne({ id }, { teacher_type: type });
+
+    // لو اتحول لـ "معلم حلقة" ومفيش حلقة ليه أصلاً — نعمله حلقة افتراضية عشان يقدر يستقبل طلاب فورًا
+    if (type === "group") {
+      const existingGroup = await this.groupModel.findOne({ teacher_id: id }).lean();
+      if (!existingGroup) {
+        await this.groupModel.create({
+          id: uuidv4(),
+          name: `حلقة أ. ${teacher.full_name.split(" ")[0]}`,
+          teacher_id: id,
+        });
+      }
+    }
+    // لو اتحول لـ "معلم عادي": مبنمسحش حلقاته الموجودة تلقائيًا (تجنبًا لفقد بيانات طلاب موجودين فعلاً)،
+    // لكن مش هيقدر يتضافله حلقات/طلاب جداد لحد ما يترجع "معلم حلقة" تاني (متحقق منها في GroupsService).
+
+    return {
+      id,
+      teacher_type: type,
+      message: type === "group" ? "تم تحديد المعلم كمعلم حلقة" : "تم تحديد المعلم كمعلم عادي (بدون طلاب)",
+    };
   }
 
   async update(id: string, dto: UpdateTeacherDto) {
@@ -164,6 +193,9 @@ export class TeachersService {
   async assignToGroup(teacherId: string, groupId: string) {
     const teacher = await this.teacherModel.findOne({ id: teacherId }).lean();
     if (!teacher) throw new NotFoundException("المعلم غير موجود");
+    if (teacher.teacher_type !== "group") {
+      throw new BadRequestException("المعلم ده مش معلم حلقة، لازم تحدد نوعه كـ \"معلم حلقة\" الأول");
+    }
     const group = await this.groupModel.findOne({ id: groupId }).lean();
     if (!group) throw new NotFoundException("الحلقة غير موجودة");
     await this.groupModel.findOneAndUpdate({ id: groupId }, { teacher_id: teacherId });

@@ -6,6 +6,8 @@ export default () => ({
     expiresIn: process.env.JWT_EXPIRES_IN || "24h",
   },
   adminDefaultPassword: process.env.ADMIN_DEFAULT_PASSWORD || "Admin123",
+  geminiApiKey: process.env.GEMINI_API_KEY,
+  geminiModel: process.env.GEMINI_MODEL || "gemini-2.0-flash",
   corsOrigins: (process.env.CORS_ORIGINS || "https://quran-sms.vercel.app,https://3bdduo-bit.github.io,http://localhost:3000,http://localhost:3001")
     .split(",")
     .map((s) => s.trim())

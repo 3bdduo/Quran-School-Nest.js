@@ -26,6 +26,7 @@ import { BlogModule } from "./modules/blog/blog.module";
 import { MediaLibraryModule } from "./modules/media-library/media-library.module";
 import { TeacherProfilesModule } from "./modules/teacher-profiles/teacher-profiles.module";
 import { ContactModule } from "./modules/contact/contact.module";
+import { AssistantModule } from "./modules/assistant/assistant.module";
 import { SeedModule } from "./seed/seed.module";
 
 @Module({
@@ -61,6 +62,7 @@ import { SeedModule } from "./seed/seed.module";
     MediaLibraryModule,
     TeacherProfilesModule,
     ContactModule,
+    AssistantModule,
     SeedModule,
   ],
 })

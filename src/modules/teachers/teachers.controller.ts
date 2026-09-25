@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   UseGuards,
@@ -57,6 +58,14 @@ export class TeachersController {
   @LogAction("تعديل بيانات معلم")
   update(@Param("id") id: string, @Body() dto: UpdateTeacherDto) {
     return this.service.update(id, dto);
+  }
+
+  // للأدمن: تحديد نوع المعلم بعد إنشائه — "group" (معلم حلقة) أو "other" (معلم عادي، بدون طلاب)
+  @Patch(":id/type")
+  @Roles("admin")
+  @LogAction("تحديد نوع المعلم")
+  setType(@Param("id") id: string, @Body("type") type: "group" | "other") {
+    return this.service.setType(id, type);
   }
 
   // للأدمن: حذف معلم
