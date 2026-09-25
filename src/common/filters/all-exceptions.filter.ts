@@ -22,6 +22,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = Array.isArray(anyRes.message) ? anyRes.message.join(", ") : anyRes.message || anyRes.error || message;
       }
     } else {
+      const err = exception as any;
+      message = err?.message || (exception instanceof Error ? exception.message : "خطأ في السيرفر");
       this.logger.error(exception instanceof Error ? exception.stack : exception);
     }
 

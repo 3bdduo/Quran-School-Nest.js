@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { v4 as uuidv4 } from "uuid";
@@ -93,16 +93,34 @@ export class GroupsService {
     if (!body.name) throw new ConflictException("اسم الحلقة مطلوب");
     const id = uuidv4();
 
-    // التحقق من وجود المعلم إذا تم تحديده، ومن إنه فعلاً "معلم حلقة"
+    let teacherUsername: string | undefined;
     if (body.teacherId) {
       const teacher = await this.teacherModel.findOne({ id: body.teacherId }).lean();
       if (!teacher) throw new NotFoundException("المعلم غير موجود");
       if (teacher.teacher_type !== "group") {
         throw new ConflictException('المعلم ده لازم يكون نوعه "معلم حلقة" الأول عشان يتربط بحلقة');
       }
+      teacherUsername = teacher.username;
     }
 
-    await this.groupModel.create({ id, name: body.name, teacher_id: body.teacherId || null });
+    try {
+      await this.groupModel.collection.dropIndex("teacher_username_1");
+    } catch {}
+
+    try {
+      await this.groupModel.create({
+        id,
+        name: body.name,
+        teacher_id: body.teacherId || null,
+        teacher_username: teacherUsername || `group_${id.slice(0, 8)}`,
+        teacher_password: "",
+      });
+    } catch (err: any) {
+      if (err?.code === 11000) {
+        throw new ConflictException("يوجد حلقة بنفس الاسم أو البيانات بالفعل");
+      }
+      throw new BadRequestException(`فشل إنشاء الحلقة: ${err?.message || "خطأ غير متوقع"}`);
+    }
 
     return { id, name: body.name, teacherId: body.teacherId || null };
   }

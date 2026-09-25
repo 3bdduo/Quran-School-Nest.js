@@ -50,7 +50,42 @@ export class TeachersService {
     @InjectModel(Group.name) private readonly groupModel: Model<Group>,
   ) {}
 
+  // دالة أوتوماتيكية تضمن إزالة الفهارس القديمة وإنشاء حلقة لأي معلم نوعه "معلم حلقة" معندوش حلقة
+  async ensureGroupsForGroupTeachers() {
+    try {
+      await this.groupModel.collection.dropIndex("teacher_username_1");
+    } catch {}
+
+    const groupTeachers = await this.teacherModel.find({ teacher_type: "group" }).lean();
+    for (const t of groupTeachers) {
+      const existing = await this.groupModel.findOne({ teacher_id: t.id }).lean();
+      if (!existing) {
+        const firstName = (t.full_name || "").trim().split(/\s+/)[0] || "المعلم";
+        try {
+          await this.groupModel.create({
+            id: uuidv4(),
+            name: `حلقة أ. ${firstName}`,
+            teacher_id: t.id,
+            teacher_username: t.username || `teacher_${t.id.slice(0, 8)}`,
+            teacher_password: "",
+          });
+        } catch {
+          // لو الاسم مكرر، ننشئها باسم مميز مع اسم المستخدم
+          await this.groupModel.create({
+            id: uuidv4(),
+            name: `حلقة أ. ${firstName} (${t.username})`,
+            teacher_id: t.id,
+            teacher_username: `${t.username}_${uuidv4().slice(0, 4)}`,
+            teacher_password: "",
+          }).catch(() => undefined);
+        }
+      }
+    }
+  }
+
   async findAll() {
+    await this.ensureGroupsForGroupTeachers().catch(() => undefined);
+
     const teachers = await this.teacherModel.find().sort({ full_name: 1 }).lean();
     // إضافة حلقات كل معلم
     const teacherIds = teachers.map((t) => t.id);
@@ -74,7 +109,11 @@ export class TeachersService {
   async findOne(id: string) {
     const teacher = await this.teacherModel.findOne({ id }).lean();
     if (!teacher) throw new NotFoundException("المعلم غير موجود");
-    const groups = await this.groupModel.find({ teacher_id: id }).lean();
+    let groups = await this.groupModel.find({ teacher_id: id }).lean();
+    if (teacher.teacher_type === "group" && groups.length === 0) {
+      await this.ensureGroupsForGroupTeachers().catch(() => undefined);
+      groups = await this.groupModel.find({ teacher_id: id }).lean();
+    }
     return {
       id: teacher.id,
       full_name: teacher.full_name,
@@ -128,6 +167,8 @@ export class TeachersService {
     return { id, full_name: dto.full_name, national_id: dto.national_id, username, phone: dto.phone, teacher_type: null };
   }
 
+  // بيتنادى بعد إنشاء المعلم مباشرة — الأدمن بيحدد هل المعلم ده "معلم حلقة" (بيقدر يكون عنده طلاب)
+  // أو "معلم عادي" (مينفعش يتضافله طلاب مباشرة). ممكن يتغيّر لاحقًا لأي نوع من الاتنين.
   async setType(id: string, type: "group" | "other") {
     if (type !== "group" && type !== "other") {
       throw new BadRequestException("نوع المعلم غير صحيح — يجب أن يكون 'group' أو 'other'");
@@ -136,29 +177,33 @@ export class TeachersService {
     if (!teacher) throw new NotFoundException("المعلم غير موجود");
 
     try {
-      await this.teacherModel.updateOne({ id }, { teacher_type: type });
+      await this.groupModel.collection.dropIndex("teacher_username_1");
+    } catch {}
 
-      // لو اتحول لـ "معلم حلقة" ومفيش حلقة ليه أصلاً — نعمله حلقة افتراضية عشان يقدر يستقبل طلاب فورًا
-      if (type === "group") {
-        const existingGroup = await this.groupModel.findOne({ teacher_id: id }).lean();
-        if (!existingGroup) {
-          const firstName = (teacher.full_name || "").split(" ")[0] || "المعلم";
+    await this.teacherModel.updateOne({ id }, { teacher_type: type });
+
+    // لو اتحول لـ "معلم حلقة" ومفيش حلقة ليه أصلاً — نعمله حلقة افتراضية عشان يقدر يستقبل طلاب فورًا
+    if (type === "group") {
+      const existingGroup = await this.groupModel.findOne({ teacher_id: id }).lean();
+      if (!existingGroup) {
+        const firstName = (teacher.full_name || "").trim().split(/\s+/)[0] || "المعلم";
+        try {
           await this.groupModel.create({
             id: uuidv4(),
             name: `حلقة أ. ${firstName}`,
             teacher_id: id,
+            teacher_username: teacher.username || `teacher_${id.slice(0, 8)}`,
+            teacher_password: "",
           });
+        } catch {
+          await this.groupModel.create({
+            id: uuidv4(),
+            name: `حلقة أ. ${firstName} (${teacher.username})`,
+            teacher_id: id,
+            teacher_username: `${teacher.username}_${uuidv4().slice(0, 4)}`,
+            teacher_password: "",
+          }).catch(() => undefined);
         }
-      }
-      // لو اتحول لـ "معلم عادي": مبنمسحش حلقاته الموجودة تلقائيًا (تجنبًا لفقد بيانات طلاب موجودين فعلاً)،
-      // لكن مش هيقدر يتضافله حلقات/طلاب جداد لحد ما يترجع "معلم حلقة" تاني (متحقق منها في GroupsService).
-    } catch (err: any) {
-      // نرجع رسالة خطأ واضحة بدل "خطأ في السيرفر"
-      if (err?.code === 11000) {
-        // تعارض في unique index — الحلقة موجودة بالفعل برغم البحث (race condition نادر)
-        // نتجاهله لأن الهدف (وجود حلقة) تحقق
-      } else {
-        throw new BadRequestException(`فشل تحديد نوع المعلم: ${err?.message || "خطأ غير متوقع"}`);
       }
     }
 

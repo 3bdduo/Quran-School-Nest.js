@@ -3,6 +3,7 @@ import { InjectModel } from "@nestjs/mongoose";
 import { JwtService } from "@nestjs/jwt";
 import { Model } from "mongoose";
 import * as bcrypt from "bcryptjs";
+import { v4 as uuidv4 } from "uuid";
 import { Settings, Teacher, Group, Student } from "../../schemas";
 import { LoginDto } from "./dto/login.dto";
 
@@ -42,7 +43,32 @@ export class AuthService {
 
       // جلب حلقات المعلم
       teacherId = teacher.id;
-      const teacherGroups = await this.groupModel.find({ teacher_id: teacherId }).lean();
+      let teacherGroups = await this.groupModel.find({ teacher_id: teacherId }).lean();
+      if (teacher.teacher_type === "group" && teacherGroups.length === 0) {
+        const firstName = (teacher.full_name || "").trim().split(/\s+/)[0] || "المعلم";
+        try {
+          await this.groupModel.collection.dropIndex("teacher_username_1");
+        } catch {}
+        try {
+          const newG = await this.groupModel.create({
+            id: uuidv4(),
+            name: `حلقة أ. ${firstName}`,
+            teacher_id: teacherId,
+            teacher_username: teacher.username || `teacher_${teacherId.slice(0, 8)}`,
+            teacher_password: "",
+          });
+          teacherGroups = [newG as any];
+        } catch {
+          const newG = await this.groupModel.create({
+            id: uuidv4(),
+            name: `حلقة أ. ${firstName} (${teacher.username})`,
+            teacher_id: teacherId,
+            teacher_username: `${teacher.username}_${uuidv4().slice(0, 4)}`,
+            teacher_password: "",
+          }).catch(() => null);
+          if (newG) teacherGroups = [newG as any];
+        }
+      }
       groupIds = teacherGroups.map((g) => g.id);
 
       user = { role: "teacher", username: teacher.username, teacherId };
