@@ -3,7 +3,7 @@ import { JwtModule } from "@nestjs/jwt";
 import { PassportModule } from "@nestjs/passport";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { MongooseModule } from "@nestjs/mongoose";
-import { Settings, SettingsSchema, Teacher, TeacherSchema, Group, GroupSchema, Student, StudentSchema } from "../../schemas";
+import { Settings, SettingsSchema, Teacher, TeacherSchema, Group, GroupSchema, Student, StudentSchema, EduGroup, EduGroupSchema } from "../../schemas";
 import { AuthService } from "./auth.service";
 import { AuthController } from "./auth.controller";
 import { JwtStrategy } from "./strategies/jwt.strategy";
@@ -15,6 +15,7 @@ import { JwtStrategy } from "./strategies/jwt.strategy";
       { name: Teacher.name, schema: TeacherSchema },
       { name: Group.name, schema: GroupSchema },
       { name: Student.name, schema: StudentSchema },
+      { name: EduGroup.name, schema: EduGroupSchema },
     ]),
     PassportModule,
     JwtModule.registerAsync({

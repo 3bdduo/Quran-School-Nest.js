@@ -51,6 +51,13 @@ export class EduGroupsController {
     return this.eduGroupsService.addStudent(id, user, studentId);
   }
 
+  @Post(":id/students/bulk")
+  @Roles("admin", "teacher")
+  @LogAction("إضافة مجموعة طلاب لمجموعة تعليمية")
+  bulkAddStudents(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload, @Body("studentIds") studentIds: string[]) {
+    return this.eduGroupsService.bulkAddStudents(id, user, studentIds);
+  }
+
   @Delete(":id/students/:studentId")
   @Roles("admin", "teacher")
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -59,3 +66,4 @@ export class EduGroupsController {
     await this.eduGroupsService.removeStudent(id, user, studentId);
   }
 }
+

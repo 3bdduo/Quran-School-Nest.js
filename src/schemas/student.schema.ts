@@ -12,6 +12,9 @@ export class Student extends Document {
   @Prop({ type: String, required: true, unique: true })
   national_id: string;
 
+  @Prop({ type: String, enum: ["male", "female", null], default: null })
+  gender?: "male" | "female" | null;
+
   @Prop({ type: String })
   date_of_birth?: string;
 

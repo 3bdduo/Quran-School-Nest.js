@@ -3,7 +3,7 @@ import { MongooseModule } from "@nestjs/mongoose";
 import {
   EduGroup, EduGroupSchema, EduStudentRef, EduStudentRefSchema,
   EduAttendanceRecord, EduAttendanceRecordSchema, ExamRecord, ExamRecordSchema,
-  Student, StudentSchema,
+  Student, StudentSchema, Teacher, TeacherSchema, Group, GroupSchema,
 } from "../../schemas";
 import { EduGroupsService } from "./edu-groups.service";
 import { EduGroupsController } from "./edu-groups.controller";
@@ -16,6 +16,8 @@ import { EduGroupsController } from "./edu-groups.controller";
       { name: EduAttendanceRecord.name, schema: EduAttendanceRecordSchema },
       { name: ExamRecord.name, schema: ExamRecordSchema },
       { name: Student.name, schema: StudentSchema },
+      { name: Teacher.name, schema: TeacherSchema },
+      { name: Group.name, schema: GroupSchema },
     ]),
   ],
   controllers: [EduGroupsController],

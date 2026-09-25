@@ -9,6 +9,18 @@ export class EduGroup extends Document {
   @Prop({ type: String, required: true })
   name: string;
 
+  @Prop({ type: String })
+  teacher_id?: string;
+
+  @Prop({ type: String })
+  teacher_name?: string;
+
+  @Prop({ type: String })
+  teacher_national_id?: string;
+
+  @Prop({ type: String })
+  teacher_phone?: string;
+
   @Prop({ type: String, required: true, unique: true })
   teacher_username: string;
 
@@ -17,3 +29,4 @@ export class EduGroup extends Document {
 }
 
 export const EduGroupSchema = SchemaFactory.createForClass(EduGroup);
+

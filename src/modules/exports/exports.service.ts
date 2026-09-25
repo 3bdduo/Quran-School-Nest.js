@@ -4,7 +4,7 @@ import { Model } from "mongoose";
 import * as ExcelJS from "exceljs";
 import { Packer } from "docx";
 import {
-  Settings, Student, Teacher, Group, EduGroup, PaymentRecord, AttendanceRecord, MemorizationLog,
+  Settings, Student, Teacher, Group, EduGroup, EduStudentRef, EduAttendanceRecord, PaymentRecord, AttendanceRecord, MemorizationLog,
   TeacherSalaryConfig, TeacherSalaryRecord, Competition, CompetitionResult,
 } from "../../schemas";
 import { addReportHeader, styleDataRow, styleTableHeaderRow, styleWorksheet } from "./excel.util";
@@ -19,6 +19,8 @@ export class ExportsService {
     @InjectModel(Student.name) private readonly studentModel: Model<Student>,
     @InjectModel(Group.name) private readonly groupModel: Model<Group>,
     @InjectModel(EduGroup.name) private readonly eduGroupModel: Model<EduGroup>,
+    @InjectModel(EduStudentRef.name) private readonly eduStudentRefModel: Model<EduStudentRef>,
+    @InjectModel(EduAttendanceRecord.name) private readonly eduAttendanceModel: Model<EduAttendanceRecord>,
     @InjectModel(PaymentRecord.name) private readonly paymentModel: Model<PaymentRecord>,
     @InjectModel(AttendanceRecord.name) private readonly attendanceModel: Model<AttendanceRecord>,
     @InjectModel(MemorizationLog.name) private readonly memorizationModel: Model<MemorizationLog>,
@@ -464,4 +466,150 @@ export class ExportsService {
 
     return Packer.toBuffer(doc);
   }
+
+  // ==========================================================================
+  // 8) إكسل: كشف طلاب مجموعة تربوية محددة
+  // ==========================================================================
+  async eduGroupStudentsExcel(eduGroupId: string): Promise<ExcelJS.Buffer> {
+    const schoolName = await this.schoolName();
+    const group = await this.eduGroupModel.findOne({ id: eduGroupId }).lean();
+    if (!group) throw new NotFoundException("المجموعة التربوية غير موجودة");
+
+    const teacherName = group.teacher_name || group.teacher_username || "غير محدد";
+
+    const refs = await this.eduStudentRefModel.find({ edu_group_id: eduGroupId }).lean();
+    const studentIds = refs.map((r) => r.student_id);
+
+    const [students, allGroups] = await Promise.all([
+      this.studentModel.find({ id: { $in: studentIds } }).sort({ name: 1 }).lean(),
+      this.groupModel.find().lean(),
+    ]);
+
+    const groupMap = Object.fromEntries(allGroups.map((g) => [g.id, g.name]));
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet(group.name.substring(0, 31));
+    styleWorksheet(sheet);
+
+    const headers = ["م", "اسم الطالب", "النوع", "الرقم القومي", "رقم الهاتف", "حلقة التحفيظ الأصلية", "المحفوظ"];
+    sheet.columns = headers.map(() => ({ width: 22 }));
+    addReportHeader(sheet, schoolName, `كشف طلاب مجموعة التربوي: ${group.name} — المعلم: ${teacherName}`, headers.length);
+
+    const headerRow = sheet.addRow(headers);
+    styleTableHeaderRow(headerRow);
+
+    students.forEach((s, idx) => {
+      let genderLabel = s.gender === "female" ? "بنات" : s.gender === "male" ? "شباب" : "";
+      if (!genderLabel && s.national_id && s.national_id.length === 14) {
+        const digit = parseInt(s.national_id.charAt(12), 10);
+        genderLabel = !isNaN(digit) && digit % 2 === 0 ? "بنات" : "شباب";
+      }
+
+      const row = sheet.addRow([
+        idx + 1,
+        s.name,
+        genderLabel || "شباب",
+        s.national_id,
+        s.phone || "-",
+        groupMap[s.group_id] || "غير محدد",
+        s.memorized_amount || "0",
+      ]);
+      styleDataRow(row, idx % 2 === 0);
+    });
+
+    return workbook.xlsx.writeBuffer();
+  }
+
+  // ==========================================================================
+  // 9) إكسل: كشف حضور يومي لمجموعة تربوية محددة
+  // ==========================================================================
+  async eduGroupAttendanceExcel(eduGroupId: string, date: string): Promise<ExcelJS.Buffer> {
+    const schoolName = await this.schoolName();
+    const group = await this.eduGroupModel.findOne({ id: eduGroupId }).lean();
+    if (!group) throw new NotFoundException("المجموعة التربوية غير موجودة");
+
+    const teacherName = group.teacher_name || group.teacher_username || "غير محدد";
+
+    const refs = await this.eduStudentRefModel.find({ edu_group_id: eduGroupId }).lean();
+    const studentIds = refs.map((r) => r.student_id);
+
+    const [students, records, allGroups] = await Promise.all([
+      this.studentModel.find({ id: { $in: studentIds } }).sort({ name: 1 }).lean(),
+      this.eduAttendanceModel.find({ edu_group_id: eduGroupId, date }).lean(),
+      this.groupModel.find().lean(),
+    ]);
+
+    const statusMap = Object.fromEntries(records.map((r) => [r.student_id, r.status]));
+    const groupMap = Object.fromEntries(allGroups.map((g) => [g.id, g.name]));
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("حضور التربوي");
+    styleWorksheet(sheet);
+
+    const headers = ["م", "اسم الطالب", "النوع", "حلقة التحفيظ", "حالة الحضور"];
+    sheet.columns = headers.map(() => ({ width: 22 }));
+    addReportHeader(sheet, schoolName, `كشف حضور التربوي: ${group.name} (${teacherName}) — التاريخ: ${date}`, headers.length);
+
+    const headerRow = sheet.addRow(headers);
+    styleTableHeaderRow(headerRow);
+
+    students.forEach((s, idx) => {
+      let genderLabel = s.gender === "female" ? "بنات" : s.gender === "male" ? "شباب" : "";
+      if (!genderLabel && s.national_id && s.national_id.length === 14) {
+        const digit = parseInt(s.national_id.charAt(12), 10);
+        genderLabel = !isNaN(digit) && digit % 2 === 0 ? "بنات" : "شباب";
+      }
+
+      const status = statusMap[s.id] || "غائب";
+      const row = sheet.addRow([
+        idx + 1,
+        s.name,
+        genderLabel || "شباب",
+        groupMap[s.group_id] || "غير محدد",
+        status,
+      ]);
+      styleDataRow(row, idx % 2 === 0);
+      const color = status === "حاضر" ? "FF0F6B3E" : status === "متأخر" ? "FFB8860B" : "FFB00020";
+      row.getCell(5).font = { bold: true, color: { argb: color } };
+    });
+
+    return workbook.xlsx.writeBuffer();
+  }
+
+  // ==========================================================================
+  // 10) إكسل: كشف جميع المجموعات التربوية
+  // ==========================================================================
+  async allEduGroupsExcel(): Promise<ExcelJS.Buffer> {
+    const schoolName = await this.schoolName();
+    const groups = await this.eduGroupModel.find().sort({ name: 1 }).lean();
+    const counts = await this.eduStudentRefModel.aggregate([{ $group: { _id: "$edu_group_id", count: { $sum: 1 } } }]);
+    const countMap = Object.fromEntries(counts.map((c) => [c._id, c.count]));
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("المجموعات التربوية");
+    styleWorksheet(sheet);
+
+    const headers = ["م", "اسم المجموعة التربوية", "اسم المعلم", "اسم المستخدم", "الرقم القومي", "الهاتف", "عدد الطلاب"];
+    sheet.columns = headers.map(() => ({ width: 22 }));
+    addReportHeader(sheet, schoolName, "كشف المجموعات التربوية وبيانات المعلمين", headers.length);
+
+    const headerRow = sheet.addRow(headers);
+    styleTableHeaderRow(headerRow);
+
+    groups.forEach((g, idx) => {
+      const row = sheet.addRow([
+        idx + 1,
+        g.name,
+        g.teacher_name || g.teacher_username,
+        g.teacher_username,
+        g.teacher_national_id || "-",
+        g.teacher_phone || "-",
+        countMap[g.id] || 0,
+      ]);
+      styleDataRow(row, idx % 2 === 0);
+    });
+
+    return workbook.xlsx.writeBuffer();
+  }
 }
+

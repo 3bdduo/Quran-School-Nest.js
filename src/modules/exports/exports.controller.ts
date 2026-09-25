@@ -93,7 +93,33 @@ export class ExportsController {
     this.sendDocx(res, buffer, "التقرير-العام.docx");
   }
 
+  @Get("edu-groups/:id/students.xlsx")
+  @Roles("admin", "teacher")
+  @LogAction("تصدير كشف طلاب مجموعة تربوية إلى إكسل")
+  async eduGroupStudentsExcel(@Param("id") id: string, @Res() res: Response) {
+    const buffer = await this.service.eduGroupStudentsExcel(id);
+    this.sendXlsx(res, buffer, `كشف-طلاب-المجموعة-التربوية-${id}.xlsx`);
+  }
+
+  @Get("edu-groups/:id/attendance.xlsx")
+  @Roles("admin", "teacher")
+  @LogAction("تصدير كشف حضور مجموعة تربوية إلى إكسل")
+  async eduGroupAttendanceExcel(@Param("id") id: string, @Query("date") date: string, @Res() res: Response) {
+    const d = date || new Date().toISOString().slice(0, 10);
+    const buffer = await this.service.eduGroupAttendanceExcel(id, d);
+    this.sendXlsx(res, buffer, `كشف-حضور-التربوي-${d}.xlsx`);
+  }
+
+  @Get("edu-groups/all.xlsx")
+  @Roles("admin")
+  @LogAction("تصدير كشف جميع المجموعات التربوية إلى إكسل")
+  async allEduGroupsExcel(@Res() res: Response) {
+    const buffer = await this.service.allEduGroupsExcel();
+    this.sendXlsx(res, buffer, "كشف-المجموعات-التربوية.xlsx");
+  }
+
   private sendXlsx(res: Response, buffer: any, filename: string) {
+
     const encoded = encodeURIComponent(filename);
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + encoded);
