@@ -82,10 +82,10 @@ export class SalariesService {
     const result = teachers.map((t) => {
       const cfg = configMap[t.username];
       const rec: any = recordMap[t.username];
-      const base = cfg?.base_salary || 0;
+      const base = rec?.base_salary !== undefined && rec?.base_salary !== null ? rec.base_salary : (cfg?.base_salary || 0);
       const incentive = rec?.incentive_amount || 0;
       const deduction = rec?.deduction_amount || 0;
-      const net = this.computeNet(base, incentive, deduction);
+      const net = rec?.net_salary !== undefined && rec?.net_salary !== null ? rec.net_salary : this.computeNet(base, incentive, deduction);
       return {
         id: t.id,
         username: t.username,
@@ -117,8 +117,17 @@ export class SalariesService {
   }
 
   async setMonth(username: string, monthKey: string, body: any) {
+    if (body.baseSalary !== undefined && body.baseSalary !== null && !isNaN(Number(body.baseSalary))) {
+      await this.configModel.findOneAndUpdate(
+        { teacher_username: username },
+        { teacher_username: username, base_salary: Number(body.baseSalary) },
+        { upsert: true }
+      );
+    }
     const config = await this.configModel.findOne({ teacher_username: username }).lean();
-    const baseSalary = config?.base_salary || 0;
+    const baseSalary = body.baseSalary !== undefined && body.baseSalary !== null && !isNaN(Number(body.baseSalary))
+      ? Number(body.baseSalary)
+      : (config?.base_salary || 0);
     const incentiveAmount = Number(body.incentiveAmount) || 0;
     const deductionAmount = Number(body.deductionAmount) || 0;
     const netSalary = this.computeNet(baseSalary, incentiveAmount, deductionAmount);
@@ -128,14 +137,14 @@ export class SalariesService {
       {
         teacher_username: username,
         month_key: monthKey,
-        status: body.status,
+        status: body.status || "paid",
         base_salary: baseSalary,
         incentive_amount: incentiveAmount,
         incentive_reason: body.incentiveReason || null,
         deduction_amount: deductionAmount,
         deduction_reason: body.deductionReason || null,
         net_salary: netSalary,
-        amount: body.amount ?? netSalary,
+        amount: body.amount !== undefined && body.amount !== null ? Number(body.amount) : netSalary,
         paid_date: body.paidDate || null,
         note: body.note || null,
         paid_by: body.paidBy || null,

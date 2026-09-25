@@ -370,28 +370,73 @@ export class ExportsService {
   // ==========================================================================
   async salariesExcel(monthKey: string): Promise<ExcelJS.Buffer> {
     const schoolName = await this.schoolName();
+    const teachers = await this.teacherModel.find().lean();
     const configs = await this.salaryConfigModel.find().lean();
     const records = await this.salaryRecordModel.find({ month_key: monthKey }).lean();
+    const configMap = Object.fromEntries(configs.map((c) => [c.teacher_username, c]));
     const recordMap = Object.fromEntries(records.map((r) => [r.teacher_username, r]));
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("الرواتب");
     styleWorksheet(sheet);
-    const headers = ["م", "المعلم", "الراتب الأساسي", "الحالة", "المبلغ المدفوع", "تاريخ الدفع", "ملاحظة"];
-    sheet.columns = headers.map(() => ({ width: 20 }));
-    addReportHeader(sheet, schoolName, `تقرير رواتب المعلمين — ${monthKey}`, headers.length);
+    const headers = [
+      "م",
+      "اسم المعلم",
+      "اسم المستخدم",
+      "الراتب الأساسي",
+      "الحوافز",
+      "سبب الحافز",
+      "الخصومات",
+      "سبب الخصم",
+      "الراتب الكلي المستحق",
+      "المبلغ المدفوع",
+      "الحالة",
+      "تاريخ الصرف",
+      "ملاحظات",
+    ];
+    sheet.columns = headers.map(() => ({ width: 18 }));
+    addReportHeader(sheet, schoolName, `تقرير مسير رواتب المعلمين — ${monthKey}`, headers.length);
 
     const headerRow = sheet.addRow(headers);
     styleTableHeaderRow(headerRow);
 
-    const statusAr = (s?: string) => (s === "paid" ? "مدفوع" : s === "advance" ? "سلفة" : "غير مدفوع");
+    const statusAr = (s?: string) => (s === "paid" ? "تم الصرف" : s === "advance" ? "سلفة" : "بانتظار الصرف");
 
-    configs.forEach((c, idx) => {
-      const rec: any = recordMap[c.teacher_username];
-      const row = sheet.addRow([idx + 1, c.teacher_username, c.base_salary, statusAr(rec?.status), rec?.amount ?? 0, rec?.paid_date || "-", rec?.note || "-"]);
+    teachers.forEach((t, idx) => {
+      const cfg = configMap[t.username];
+      const rec: any = recordMap[t.username];
+      const base = rec?.base_salary !== undefined && rec?.base_salary !== null ? rec.base_salary : (cfg?.base_salary || 0);
+      const inc = rec?.incentive_amount || 0;
+      const incReason = rec?.incentive_reason || "-";
+      const ded = rec?.deduction_amount || 0;
+      const dedReason = rec?.deduction_reason || "-";
+      const net = rec?.net_salary !== undefined && rec?.net_salary !== null ? rec.net_salary : Math.max(0, base + inc - ded);
+      const amount = rec?.amount ?? (rec?.status === "paid" ? net : 0);
+      const statusText = statusAr(rec?.status);
+
+      const row = sheet.addRow([
+        idx + 1,
+        t.full_name || t.username,
+        t.username,
+        base,
+        inc,
+        incReason,
+        ded,
+        dedReason,
+        net,
+        amount,
+        statusText,
+        rec?.paid_date || "-",
+        rec?.note || "-",
+      ]);
       styleDataRow(row, idx % 2 === 0);
-      if (rec?.status === "paid") row.getCell(4).font = { color: { argb: "FF0F6B3E" }, bold: true };
-      else if (!rec || rec.status === "unpaid") row.getCell(4).font = { color: { argb: "FFB00020" }, bold: true };
+      if (rec?.status === "paid") {
+        row.getCell(11).font = { color: { argb: "FF0F6B3E" }, bold: true };
+      } else if (!rec || rec.status === "unpaid") {
+        row.getCell(11).font = { color: { argb: "FFB00020" }, bold: true };
+      } else if (rec.status === "advance") {
+        row.getCell(11).font = { color: { argb: "FF854D0E" }, bold: true };
+      }
     });
 
     return workbook.xlsx.writeBuffer();
