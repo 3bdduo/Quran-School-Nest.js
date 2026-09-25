@@ -1,4 +1,4 @@
-// v2 - Gemini assistant fix
+// v3 - Gemini 3.8 flash upgrade
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { ExpressAdapter } from "@nestjs/platform-express";

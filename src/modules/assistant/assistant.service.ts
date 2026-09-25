@@ -103,11 +103,15 @@ export class AssistantService {
       { role: "user", parts: [{ text: dto.message }] },
     ];
 
-    const configuredModel = this.config.get<string>("geminiModel") || "gemini-1.5-flash";
-    const modelsToTry = [configuredModel];
-    if (configuredModel !== "gemini-1.5-flash") {
-      modelsToTry.push("gemini-1.5-flash");
-    }
+    const configuredModel = this.config.get<string>("geminiModel") || "gemini-3.8-flash";
+    const candidateModels = [
+      configuredModel,
+      "gemini-3.8-flash",
+      "gemini-3.5-flash",
+      "gemini-flash-latest",
+      "gemini-2.5-flash",
+    ];
+    const modelsToTry = candidateModels.filter((m, i, arr) => arr.indexOf(m) === i);
 
     let lastError: { status: number; body: string } | null = null;
     let rawText = "";

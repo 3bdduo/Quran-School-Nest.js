@@ -36,14 +36,13 @@ export class AssistantController {
       const data: any = await res.json();
       const modelNames = data?.models?.map((m: any) => m.name.replace("models/", "")) || [];
       
-      // Also try calling the first flash model or gemini-2.5-flash
-      const candidateModel = modelNames.find((m: string) => m.includes("flash")) || "gemini-2.5-flash";
+      const candidateModel = "gemini-3.8-flash";
       const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/${candidateModel}:generateContent?key=${key}`;
       const testRes = await fetch(testUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: "ping" }] }],
+          contents: [{ role: "user", parts: [{ text: "رد بكلمة واحدة: شغال" }] }],
         }),
       });
       const testBody = await testRes.text();
