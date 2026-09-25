@@ -66,6 +66,14 @@ export class StudentsService {
 
   async findAll(user: CurrentUserPayload, groupIdQuery?: string) {
     if (user.role === "teacher") {
+      if (user.teacherType === "edu" || (user.eduGroupId && (!user.groupIds || user.groupIds.length === 0))) {
+        // معلم تربوي: يطلب الطلاب النشطين لاختيارهم للمجموعة التربوية
+        const filter: any = { is_waiting: { $ne: true } };
+        if (groupIdQuery) filter.group_id = groupIdQuery;
+        return this.studentModel.find(filter).lean();
+      }
+
+      // معلم حلقة: يرى فقط طلاب حلقاته القرآنية المسندة إليه
       const groupIds = user.groupIds || [];
       const filter: any = { group_id: { $in: groupIds } };
       if (groupIdQuery && groupIds.includes(groupIdQuery)) {

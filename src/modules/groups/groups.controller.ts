@@ -12,7 +12,7 @@ export class GroupsController {
   constructor(private readonly groupsService: GroupsService) {}
 
   @Get()
-  @Roles("admin")
+  @Roles("admin", "teacher")
   findAll() {
     return this.groupsService.findAll();
   }

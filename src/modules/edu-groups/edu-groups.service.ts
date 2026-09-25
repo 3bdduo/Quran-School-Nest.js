@@ -159,7 +159,7 @@ export class EduGroupsService {
         phone: body.phone?.trim() || null,
         username,
         password: hashed,
-        teacher_type: "other", // معلم عادي للمجموعات التربوية
+        teacher_type: "edu", // معلم تربوي
       });
     } catch (err: any) {
       if (err.code === 11000) {

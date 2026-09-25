@@ -36,9 +36,11 @@ export class AuthService {
       user = { role: "admin", username: "Admin" };
 
     } else if (role === "teacher") {
-      // تسجيل دخول المعلم: نبحث في Teacher entity
+      // تسجيل دخول المعلم: نبحث في Teacher entity أولاً
       let teacher = await this.teacherModel.findOne({ username }).lean();
       if (!password) throw new BadRequestException("كلمة المرور مطلوبة");
+
+      let teacherType: "group" | "edu" | "other" | null = null;
 
       if (teacher) {
         const valid = await bcrypt.compare(password, teacher.password);
@@ -46,42 +48,52 @@ export class AuthService {
 
         teacherId = teacher.id;
 
-        // جلب حلقات المعلم إن وجدت
-        let teacherGroups = await this.groupModel.find({ teacher_id: teacherId }).lean();
-        if (teacher.teacher_type === "group" && teacherGroups.length === 0) {
-          const firstName = (teacher.full_name || "").trim().split(/\s+/)[0] || "المعلم";
-          try {
-            await this.groupModel.collection.dropIndex("teacher_username_1");
-          } catch {}
-          try {
-            const newG = await this.groupModel.create({
-              id: uuidv4(),
-              name: `حلقة أ. ${firstName}`,
-              teacher_id: teacherId,
-              teacher_username: teacher.username || `teacher_${teacherId.slice(0, 8)}`,
-              teacher_password: "",
-            });
-            teacherGroups = [newG as any];
-          } catch {
-            const newG = await this.groupModel.create({
-              id: uuidv4(),
-              name: `حلقة أ. ${firstName} (${teacher.username})`,
-              teacher_id: teacherId,
-              teacher_username: `${teacher.username}_${uuidv4().slice(0, 4)}`,
-              teacher_password: "",
-            }).catch(() => null);
-            if (newG) teacherGroups = [newG as any];
-          }
-        }
-        groupIds = teacherGroups.map((g) => g.id);
-
-        // جلب مجموعة التربوي المرتبطة بهذا المعلم إن وجدت
+        // فحص هل المعلم تربوي
         const eduGroup = await this.eduGroupModel.findOne({
           $or: [{ teacher_username: teacher.username }, { teacher_id: teacher.id }],
         }).lean();
-        if (eduGroup) eduGroupId = eduGroup.id;
 
-        user = { role: "teacher", username: teacher.username, teacherId, eduGroupId };
+        if (teacher.teacher_type === "edu" || eduGroup) {
+          // معلم تربوي فقط — ليس لديه حلقات قرآن ولن تظهر له أي صلاحية تخص الحلقات
+          teacherType = "edu";
+          eduGroupId = eduGroup ? eduGroup.id : null;
+          groupIds = [];
+        } else {
+          // معلم حلقة أو معلم عادي — ليس لديه صلاحيات التربوي
+          teacherType = (teacher.teacher_type as any) || "group";
+          eduGroupId = null; // نمنع أي وصول للتربوي
+
+          // جلب حلقات المعلم
+          let teacherGroups = await this.groupModel.find({ teacher_id: teacherId }).lean();
+          if (teacher.teacher_type === "group" && teacherGroups.length === 0) {
+            const firstName = (teacher.full_name || "").trim().split(/\s+/)[0] || "المعلم";
+            try {
+              await this.groupModel.collection.dropIndex("teacher_username_1");
+            } catch {}
+            try {
+              const newG = await this.groupModel.create({
+                id: uuidv4(),
+                name: `حلقة أ. ${firstName}`,
+                teacher_id: teacherId,
+                teacher_username: teacher.username || `teacher_${teacherId.slice(0, 8)}`,
+                teacher_password: "",
+              });
+              teacherGroups = [newG as any];
+            } catch {
+              const newG = await this.groupModel.create({
+                id: uuidv4(),
+                name: `حلقة أ. ${firstName} (${teacher.username})`,
+                teacher_id: teacherId,
+                teacher_username: `${teacher.username}_${uuidv4().slice(0, 4)}`,
+                teacher_password: "",
+              }).catch(() => null);
+              if (newG) teacherGroups = [newG as any];
+            }
+          }
+          groupIds = teacherGroups.map((g) => g.id);
+        }
+
+        user = { role: "teacher", username: teacher.username, teacherId, teacherType, eduGroupId };
       } else {
         // فحص ما إذا كان معلماً تربوياً مسجلاً في جدول EduGroup مباشرة
         const eduGroup = await this.eduGroupModel.findOne({ teacher_username: username }).lean();
@@ -90,8 +102,15 @@ export class AuthService {
         const valid = await bcrypt.compare(password, eduGroup.teacher_password);
         if (!valid) throw new UnauthorizedException("اسم المستخدم أو كلمة المرور غير صحيحة");
 
+        teacherType = "edu";
         eduGroupId = eduGroup.id;
-        user = { role: "teacher", username: eduGroup.teacher_username, teacherId: eduGroup.teacher_id || null, eduGroupId };
+        user = {
+          role: "teacher",
+          username: eduGroup.teacher_username,
+          teacherId: eduGroup.teacher_id || null,
+          teacherType: "edu",
+          eduGroupId,
+        };
       }
 
     } else if (role === "student") {
@@ -106,6 +125,7 @@ export class AuthService {
       ...user,
       groupIds: groupIds.length ? groupIds : undefined,
       eduGroupId: eduGroupId || undefined,
+      teacherType: user.teacherType || undefined,
     };
     const token = this.jwtService.sign(payload);
 
@@ -115,6 +135,7 @@ export class AuthService {
         role: user.role,
         username: user.username,
         teacherId: user.teacherId || null,
+        teacherType: user.teacherType || null,
         groupIds: groupIds.length ? groupIds : undefined,
         eduGroupId: eduGroupId || null,
         studentId: user.studentId || null,
@@ -123,8 +144,8 @@ export class AuthService {
   }
 
   me(user: any) {
-    const { role, username, teacherId, groupIds, eduGroupId, studentId } = user;
-    return { role, username, teacherId, groupIds, eduGroupId: eduGroupId || null, studentId };
+    const { role, username, teacherId, teacherType, groupIds, eduGroupId, studentId } = user;
+    return { role, username, teacherId, teacherType: teacherType || null, groupIds, eduGroupId: eduGroupId || null, studentId };
   }
 }
 
