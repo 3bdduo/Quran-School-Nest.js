@@ -30,23 +30,33 @@ export class AssistantController {
     if (!key) return { keyFound: false, message: "GEMINI_API_KEY غير موجود في environment variables" };
 
     const maskedKey = key.substring(0, 8) + "..." + key.substring(key.length - 4);
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
-
+    const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`;
     try {
-      const res = await fetch(url, {
+      const res = await fetch(listUrl);
+      const data: any = await res.json();
+      const modelNames = data?.models?.map((m: any) => m.name.replace("models/", "")) || [];
+      
+      // Also try calling the first flash model or gemini-2.5-flash
+      const candidateModel = modelNames.find((m: string) => m.includes("flash")) || "gemini-2.5-flash";
+      const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/${candidateModel}:generateContent?key=${key}`;
+      const testRes = await fetch(testUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: "say hi" }] }],
+          contents: [{ role: "user", parts: [{ text: "ping" }] }],
         }),
       });
-      const body = await res.text();
+      const testBody = await testRes.text();
+
       return {
         keyFound: true,
         maskedKey,
         keyLength: key.length,
-        httpStatus: res.status,
-        googleResponse: JSON.parse(body),
+        modelsCount: modelNames.length,
+        availableModels: modelNames,
+        testedModel: candidateModel,
+        testHttpStatus: testRes.status,
+        testResponse: JSON.parse(testBody),
       };
     } catch (err: any) {
       return { keyFound: true, maskedKey, fetchError: err.message };
