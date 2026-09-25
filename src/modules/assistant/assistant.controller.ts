@@ -36,26 +36,42 @@ export class AssistantController {
       const data: any = await res.json();
       const modelNames = data?.models?.map((m: any) => m.name.replace("models/", "")) || [];
       
-      const candidateModel = "gemini-3.8-flash";
-      const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/${candidateModel}:generateContent?key=${key}`;
-      const testRes = await fetch(testUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: "رد بكلمة واحدة: شغال" }] }],
-        }),
-      });
-      const testBody = await testRes.text();
+      const candidateModels = [
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-flash-latest",
+        "gemini-flash-lite-latest",
+        "gemini-3.8-flash",
+        "gemini-2.5-flash-lite",
+      ];
+
+      const modelTestResults: any = {};
+      for (const m of candidateModels) {
+        const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`;
+        try {
+          const testRes = await fetch(testUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text: "hi" }] }],
+            }),
+          });
+          const text = await testRes.text();
+          modelTestResults[m] = {
+            status: testRes.status,
+            body: text.substring(0, 200),
+          };
+        } catch (e: any) {
+          modelTestResults[m] = { error: e.message };
+        }
+      }
 
       return {
         keyFound: true,
         maskedKey,
         keyLength: key.length,
-        modelsCount: modelNames.length,
-        availableModels: modelNames,
-        testedModel: candidateModel,
-        testHttpStatus: testRes.status,
-        testResponse: JSON.parse(testBody),
+        modelTestResults,
       };
     } catch (err: any) {
       return { keyFound: true, maskedKey, fetchError: err.message };
