@@ -75,7 +75,6 @@ export class AssistantService {
 
   async ask(dto: AskAssistantDto): Promise<GeminiResponse> {
     const apiKey = this.config.get<string>("geminiApiKey");
-    const model = this.config.get<string>("geminiModel") || "gemini-2.0-flash";
 
     if (!apiKey) {
       throw new InternalServerErrorException(
@@ -104,37 +103,80 @@ export class AssistantService {
       { role: "user", parts: [{ text: dto.message }] },
     ];
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-    let res: Response;
-    try {
-      res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: contextLines }] },
-          contents,
-          generationConfig: {
-            temperature: 0.4,
-            maxOutputTokens: 500,
-            response_mime_type: "application/json",
-          },
-        }),
-      });
-    } catch (err) {
-      this.logger.error("Gemini request failed", err as Error);
-      throw new BadGatewayException("تعذر الاتصال بخدمة المساعد الذكي حاليًا");
+    const configuredModel = this.config.get<string>("geminiModel") || "gemini-1.5-flash";
+    const modelsToTry = [configuredModel];
+    if (configuredModel !== "gemini-1.5-flash") {
+      modelsToTry.push("gemini-1.5-flash");
     }
 
-    if (!res.ok) {
+    let lastError: { status: number; body: string } | null = null;
+    let rawText = "";
+
+    for (const model of modelsToTry) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: contextLines }] },
+            contents,
+            generationConfig: {
+              temperature: 0.4,
+              maxOutputTokens: 500,
+              responseMimeType: "application/json",
+            },
+          }),
+        });
+      } catch (err) {
+        this.logger.error("Gemini request failed", err as Error);
+        throw new BadGatewayException("تعذر الاتصال بخدمة المساعد الذكي حاليًا");
+      }
+
+      if (res.ok) {
+        const data: any = await res.json();
+        rawText =
+          data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || "").join("") || "";
+        break;
+      }
+
       const errBody = await res.text().catch(() => "");
-      this.logger.error(`Gemini API error ${res.status}: ${errBody}`);
+      this.logger.error(`Gemini API error with model ${model} (${res.status}): ${errBody}`);
+      lastError = { status: res.status, body: errBody };
+
+      // If invalid API key or permission denied, no need to retry with another model
+      if (
+        res.status === 400 &&
+        (errBody.includes("API_KEY_INVALID") || errBody.includes("API key not valid"))
+      ) {
+        break;
+      }
+      if (res.status === 403) {
+        break;
+      }
+    }
+
+    if (!rawText && lastError) {
+      const { status, body } = lastError;
+      if (body.includes("API_KEY_INVALID") || body.includes("API key not valid")) {
+        throw new BadGatewayException(
+          "مفتاح Gemini API غير صالح (API Key Invalid) — تأكد من نسخ المفتاح بشكل صحيح من Google AI Studio بدون مسافات أو علامات تنصيص",
+        );
+      }
+      if (body.includes("RESOURCE_EXHAUSTED") || status === 429) {
+        throw new BadGatewayException(
+          "تم تجاوز حد الاستخدام المسموح به (Quota Exceeded) في حساب Google Gemini",
+        );
+      }
+      if (body.includes("PERMISSION_DENIED") || status === 403) {
+        throw new BadGatewayException(
+          "تم رفض الوصول من جوجل (Permission Denied) — تأكد من تفعيل صلاحيات المفتاح في Google Cloud / AI Studio",
+        );
+      }
       throw new BadGatewayException("المساعد الذكي مش متاح دلوقتي، حاول تاني بعد شوية");
     }
-
-    const data: any = await res.json();
-    const rawText: string =
-      data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || "").join("") || "";
 
     return this.parseModelReply(rawText);
   }
