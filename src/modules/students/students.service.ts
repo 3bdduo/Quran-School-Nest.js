@@ -7,8 +7,8 @@ import {
   Student, Settings, PaymentRecord, AttendanceRecord, MemorizationLog,
   EduStudentRef, EduAttendanceRecord, ExamRecord, CompetitionParticipant, CompetitionResult,
 } from "../../schemas";
-
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
+import { validateFullName, validateEgyptianNationalId, validateEgyptianPhone } from "../../common/validation.utils";
 
 const FIELD_MAP: Record<string, string> = {
   name: "name", phone: "phone", memorizedAmount: "memorized_amount", notes: "notes",
@@ -138,8 +138,16 @@ export class StudentsService {
       }
     }
 
-    if (!body.name || !body.nationalId || body.nationalId.length !== 14) {
-      throw new ConflictException("الحقول المطلوبة: name, nationalId (14 رقم)");
+    // ─── التحقق من صحة البيانات ──────────────────────────
+    const nameCheck = validateFullName(body.name);
+    if (!nameCheck.valid) throw new ConflictException(nameCheck.message);
+
+    const nidCheck = validateEgyptianNationalId(body.nationalId);
+    if (!nidCheck.valid) throw new ConflictException(nidCheck.message);
+
+    if (body.phone) {
+      const phoneCheck = validateEgyptianPhone(body.phone);
+      if (!phoneCheck.valid) throw new ConflictException(phoneCheck.message);
     }
     if (!groupId && user.role !== "admin" && !body.isWaiting) {
       throw new ConflictException("الحقل المطلوب: groupId");
@@ -185,8 +193,18 @@ export class StudentsService {
   async publicRegister(body: {
     name: string; phone: string; nationalId: string; memorizedAmount: string; currentSurah: string;
   }) {
-    if (!body.name || !body.phone || !body.nationalId || body.nationalId.length !== 14 || !body.memorizedAmount || !body.currentSurah) {
-      throw new ConflictException("جميع الحقول مطلوبة");
+    // ─── التحقق من صحة البيانات ──────────────────────────
+    const nameCheck = validateFullName(body.name);
+    if (!nameCheck.valid) throw new ConflictException(nameCheck.message);
+
+    const nidCheck = validateEgyptianNationalId(body.nationalId);
+    if (!nidCheck.valid) throw new ConflictException(nidCheck.message);
+
+    const phoneCheck = validateEgyptianPhone(body.phone);
+    if (!phoneCheck.valid) throw new ConflictException(phoneCheck.message);
+
+    if (!body.memorizedAmount || !body.currentSurah) {
+      throw new ConflictException("كمية الحفظ والسورة الحالية مطلوبة");
     }
 
     const settings = await this.settingsModel.findById(1).lean();

@@ -32,15 +32,16 @@ function transliterate(arabic: string): string {
     result += ARABIC_TO_LATIN[ch] ?? ch;
   }
   // إزالة الأحرف غير الأبجدية ماعدا النقطة
-  return result.replace(/[^a-z0-9.]/gi, "").toLowerCase();
+  return result.replace(/[^a-z0-9]/gi, "").toLowerCase();
 }
 
 function generateUsername(fullName: string): string {
   const parts = fullName.trim().split(/\s+/);
-  // نأخذ أول حرف من الاسم الأول + اسم الثاني كاملاً
-  const first = transliterate(parts[0]?.charAt(0) || "t");
-  const second = transliterate(parts[1] || parts[0] || "teacher");
-  return `${first}.${second}`.slice(0, 20); // حد أقصى 20 حرف
+  // اسم واحد فقط: الاسم الأول + الاسم الثاني بدون نقطة أو فاصل
+  const first = transliterate(parts[0] || "teacher");
+  const second = transliterate(parts[1] || "");
+  const combined = (first + second).replace(/\./g, ""); // إزالة أي نقاط
+  return combined.slice(0, 20) || "teacher"; // حد أقصى 20 حرف
 }
 
 @Injectable()

@@ -65,5 +65,23 @@ export class EduGroupsController {
   async removeStudent(@Param("id") id: string, @Param("studentId") studentId: string, @CurrentUser() user: CurrentUserPayload) {
     await this.eduGroupsService.removeStudent(id, user, studentId);
   }
+
+  @Post(":id/transfer-student")
+  @Roles("admin")
+  @LogAction("نقل طالب بين المجموعات التعليمية")
+  transferStudent(
+    @Param("id") fromGroupId: string,
+    @Body("studentId") studentId: string,
+    @Body("toGroupId") toGroupId: string,
+  ) {
+    return this.eduGroupsService.transferStudent(studentId, fromGroupId, toGroupId);
+  }
+
+  @Post(":id/change-teacher")
+  @Roles("admin")
+  @LogAction("تغيير معلم المجموعة التعليمية")
+  changeTeacher(@Param("id") id: string, @Body("newTeacherId") newTeacherId: string) {
+    return this.eduGroupsService.changeTeacher(id, newTeacherId);
+  }
 }
 

@@ -181,4 +181,41 @@ export class GroupsService {
     }
     await this.groupModel.deleteOne({ id });
   }
+
+  // ─── نقل طالب من حلقة لأخرى ─────────────────────────────────────
+  async transferStudent(studentId: string, toGroupId: string) {
+    const student = await this.studentModel.findOne({ id: studentId }).lean();
+    if (!student) throw new NotFoundException("الطالب غير موجود");
+
+    const toGroup = await this.groupModel.findOne({ id: toGroupId }).lean();
+    if (!toGroup) throw new NotFoundException("الحلقة المستهدفة غير موجودة");
+
+    await this.studentModel.updateOne({ id: studentId }, { group_id: toGroupId });
+    return {
+      message: `تم نقل الطالب "${student.name}" إلى حلقة "${toGroup.name}" بنجاح`,
+    };
+  }
+
+  // ─── تغيير معلم الحلقة (يظل الطلاب في نفس الحلقة) ───────────────
+  async changeTeacher(groupId: string, newTeacherId: string) {
+    const group = await this.groupModel.findOne({ id: groupId }).lean();
+    if (!group) throw new NotFoundException("الحلقة غير موجودة");
+
+    const newTeacher = await this.teacherModel.findOne({ id: newTeacherId }).lean();
+    if (!newTeacher) throw new NotFoundException("المعلم غير موجود");
+    if (newTeacher.teacher_type !== "group") {
+      throw new ConflictException('المعلم يجب أن يكون من نوع "معلم حلقة" ليُسند إليه الطلاب');
+    }
+
+    await this.groupModel.updateOne(
+      { id: groupId },
+      { teacher_id: newTeacherId, teacher_username: newTeacher.username },
+    );
+
+    return {
+      message: `تم تغيير معلم الحلقة "${group.name}" إلى "${newTeacher.full_name}" بنجاح`,
+      teacherName: newTeacher.full_name,
+      teacherUsername: newTeacher.username,
+    };
+  }
 }

@@ -22,14 +22,15 @@ function transliterate(arabic: string): string {
   for (const ch of arabic) {
     result += ARABIC_TO_LATIN[ch] ?? ch;
   }
-  return result.replace(/[^a-z0-9.]/gi, "").toLowerCase();
+  return result.replace(/[^a-z0-9]/gi, "").toLowerCase();
 }
 
 function generateUsername(fullName: string): string {
   const parts = fullName.trim().split(/\s+/);
-  const first = transliterate(parts[0]?.charAt(0) || "edu");
-  const second = transliterate(parts[1] || parts[0] || "teacher");
-  return `${first}.${second}`.slice(0, 20);
+  const first = transliterate(parts[0] || "edu");
+  const second = transliterate(parts[1] || "");
+  const combined = (first + second).replace(/\./g, "");
+  return combined.slice(0, 20) || "eduteacher";
 }
 
 @Injectable()
@@ -289,6 +290,53 @@ export class EduGroupsService {
     if (user.role === "teacher" && user.eduGroupId !== id) throw new ForbiddenException("ليس لديك صلاحية");
     await this.eduStudentRefModel.deleteOne({ edu_group_id: id, student_id: studentId });
     return { message: "تم حذف الطالب من المجموعة" };
+  }
+
+  // ─── نقل طالب من مجموعة تعليمية لأخرى ─────────────────────────────
+  async transferStudent(studentId: string, fromGroupId: string, toGroupId: string) {
+    const toGroup = await this.eduGroupModel.findOne({ id: toGroupId }).lean();
+    if (!toGroup) throw new NotFoundException("المجموعة التعليمية المستهدفة غير موجودة");
+
+    const student = await this.studentModel.findOne({ id: studentId }).lean();
+    if (!student) throw new NotFoundException("الطالب غير موجود");
+
+    // حذف الطالب من المجموعة الأصلية وإضافته للمجموعة الجديدة
+    await this.eduStudentRefModel.deleteOne({ edu_group_id: fromGroupId, student_id: studentId });
+    await this.eduStudentRefModel.findOneAndUpdate(
+      { edu_group_id: toGroupId, student_id: studentId },
+      { edu_group_id: toGroupId, student_id: studentId },
+      { upsert: true },
+    );
+
+    return {
+      message: `تم نقل الطالب "${student.name}" إلى مجموعة "${toGroup.name}" بنجاح`,
+    };
+  }
+
+  // ─── تغيير معلم المجموعة التعليمية ──────────────────────────────────
+  async changeTeacher(groupId: string, newTeacherId: string) {
+    const group = await this.eduGroupModel.findOne({ id: groupId }).lean();
+    if (!group) throw new NotFoundException("المجموعة التعليمية غير موجودة");
+
+    const newTeacher = await this.teacherModel.findOne({ id: newTeacherId }).lean();
+    if (!newTeacher) throw new NotFoundException("المعلم غير موجود");
+
+    await this.eduGroupModel.updateOne(
+      { id: groupId },
+      {
+        teacher_id: newTeacherId,
+        teacher_name: newTeacher.full_name,
+        teacher_username: newTeacher.username,
+        teacher_national_id: newTeacher.national_id,
+        teacher_phone: newTeacher.phone || "",
+      },
+    );
+
+    return {
+      message: `تم تغيير معلم المجموعة "${group.name}" إلى "${newTeacher.full_name}" بنجاح`,
+      teacherName: newTeacher.full_name,
+      teacherUsername: newTeacher.username,
+    };
   }
 }
 

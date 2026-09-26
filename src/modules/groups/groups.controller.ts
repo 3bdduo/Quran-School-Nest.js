@@ -49,4 +49,18 @@ export class GroupsController {
   async remove(@Param("id") id: string) {
     await this.groupsService.remove(id);
   }
+
+  @Post("transfer-student")
+  @Roles("admin")
+  @LogAction("نقل طالب بين حلقات التحفيظ")
+  transferStudent(@Body("studentId") studentId: string, @Body("toGroupId") toGroupId: string) {
+    return this.groupsService.transferStudent(studentId, toGroupId);
+  }
+
+  @Post(":id/change-teacher")
+  @Roles("admin")
+  @LogAction("تغيير معلم حلقة التحفيظ")
+  changeTeacher(@Param("id") id: string, @Body("newTeacherId") newTeacherId: string) {
+    return this.groupsService.changeTeacher(id, newTeacherId);
+  }
 }
