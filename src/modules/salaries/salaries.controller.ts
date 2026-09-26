@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Put, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, HttpStatus, Param, Put, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
@@ -24,6 +24,7 @@ export class SalariesController {
   }
 
   @Get("me")
+  @Roles("admin", "teacher")
   me(@CurrentUser() user: CurrentUserPayload) {
     return this.service.me(user.username);
   }
@@ -36,8 +37,11 @@ export class SalariesController {
   }
 
   @Get("teacher/:username/history")
-  @Roles("admin")
-  history(@Param("username") username: string) {
+  @Roles("admin", "teacher")
+  history(@Param("username") username: string, @CurrentUser() user: CurrentUserPayload) {
+    if (user.role === "teacher" && user.username !== username) {
+      throw new ForbiddenException("غير مصرح لك بعرض رواتب معلم آخر");
+    }
     return this.service.history(username);
   }
 

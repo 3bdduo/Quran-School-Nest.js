@@ -51,10 +51,17 @@ export class SalariesService {
   async me(username: string) {
     const cfg = await this.configModel.findOne({ teacher_username: username }).lean();
     const teacher = await this.teacherModel.findOne({ username }).lean();
+    let baseSalary = cfg?.base_salary || 0;
+    if (!baseSalary) {
+      const latestRecord = await this.recordModel.findOne({ teacher_username: username }).sort({ month_key: -1 }).lean();
+      if (latestRecord?.base_salary) {
+        baseSalary = latestRecord.base_salary;
+      }
+    }
     return {
       username,
       full_name: teacher?.full_name || username,
-      base_salary: cfg?.base_salary || 0,
+      base_salary: baseSalary,
       notes: cfg?.notes || null,
     };
   }
