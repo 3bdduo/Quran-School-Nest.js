@@ -7,7 +7,7 @@ export default () => ({
   },
   adminDefaultPassword: process.env.ADMIN_DEFAULT_PASSWORD || "Admin123",
   geminiApiKey: process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim().replace(/^["']|["']$/g, "") : undefined,
-  geminiModel: (process.env.GEMINI_MODEL || "gemini-3.8-flash").trim(),
+  geminiModel: (process.env.GEMINI_MODEL || "gemini-flash-latest").trim(),
   corsOrigins: (process.env.CORS_ORIGINS || "https://quran-sms.vercel.app,https://3bdduo-bit.github.io,http://localhost:3000,http://localhost:3001")
     .split(",")
     .map((s) => s.trim())

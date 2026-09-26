@@ -103,13 +103,15 @@ export class AssistantService {
       { role: "user", parts: [{ text: dto.message }] },
     ];
 
-    const configuredModel = this.config.get<string>("geminiModel") || "gemini-3.8-flash";
+    const configuredModel = this.config.get<string>("geminiModel") || "gemini-flash-latest";
+    // ترتيب مبني على اختبار فعلي للمفتاح ده بالذات (عبر /assistant/diagnose):
+    // الأسامي دي شغالة فعلاً دلوقتي، الأقدم/الملغاة اتشالت من القائمة
     const candidateModels = [
       configuredModel,
-      "gemini-3.8-flash",
-      "gemini-3.5-flash",
       "gemini-flash-latest",
-      "gemini-2.5-flash",
+      "gemini-3.1-flash-lite",
+      "gemini-3.5-flash-lite",
+      "gemini-flash-lite-latest",
     ];
     const modelsToTry = candidateModels.filter((m, i, arr) => arr.indexOf(m) === i);
 
@@ -129,7 +131,9 @@ export class AssistantService {
             contents,
             generationConfig: {
               temperature: 0.4,
-              maxOutputTokens: 500,
+              // زودنا القيمة من 500: موديلات Gemini 3 بتستهلك جزء من التوكنز في "تفكير داخلي"
+              // قبل ما تكتب الرد الظاهر، فلو القيمة قليلة ممكن يخلص الكوتة في التفكير ويرجع رد فاضي
+              maxOutputTokens: 2048,
               responseMimeType: "application/json",
             },
           }),
@@ -143,7 +147,12 @@ export class AssistantService {
         const data: any = await res.json();
         rawText =
           data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || "").join("") || "";
-        break;
+        if (rawText.trim()) break;
+        // رد ناجح (200) لكن فاضي — نسجل السبب (finishReason غالبًا MAX_TOKENS) ونجرب موديل تاني
+        const finishReason = data?.candidates?.[0]?.finishReason || "unknown";
+        this.logger.warn(`Gemini returned empty text with model ${model} (finishReason: ${finishReason})`);
+        lastError = { status: 200, body: `empty response, finishReason=${finishReason}` };
+        continue;
       }
 
       const errBody = await res.text().catch(() => "");
