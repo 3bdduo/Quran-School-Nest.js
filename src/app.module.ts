@@ -16,6 +16,7 @@ import { MemorizationModule } from "./modules/memorization/memorization.module";
 import { PaymentsModule } from "./modules/payments/payments.module";
 import { ExamsModule } from "./modules/exams/exams.module";
 import { CompetitionsModule } from "./modules/competitions/competitions.module";
+import { RayhanaModule } from "./modules/rayhana/rayhana.module";
 
 import { ActivityLogModule } from "./modules/activity-log/activity-log.module";
 import { SalariesModule } from "./modules/salaries/salaries.module";
@@ -54,6 +55,7 @@ import { SeedModule } from "./seed/seed.module";
     PaymentsModule,
     ExamsModule,
     CompetitionsModule,
+    RayhanaModule,
     SalariesModule,
     ReportsModule,
     ExportsModule,
