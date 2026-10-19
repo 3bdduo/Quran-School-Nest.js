@@ -20,4 +20,5 @@ export * from "./media-item.schema";
 export * from "./teacher-profile.schema";
 export * from "./contact-message.schema";
 export * from "./rayhana-participant.schema";
+export * from "./stored-file.schema";
 
