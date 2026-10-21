@@ -5,7 +5,7 @@ import {
   CompetitionResult, CompetitionResultSchema, Student, StudentSchema, EduStudentRef, EduStudentRefSchema,
 } from "../../schemas";
 import { CompetitionsService } from "./competitions.service";
-import { CompetitionsController } from "./competitions.controller";
+import { CompetitionsController, CompetitionsPublicController } from "./competitions.controller";
 
 @Module({
   imports: [
@@ -17,7 +17,7 @@ import { CompetitionsController } from "./competitions.controller";
       { name: EduStudentRef.name, schema: EduStudentRefSchema },
     ]),
   ],
-  controllers: [CompetitionsController],
+  controllers: [CompetitionsController, CompetitionsPublicController],
   providers: [CompetitionsService],
   exports: [CompetitionsService],
 })

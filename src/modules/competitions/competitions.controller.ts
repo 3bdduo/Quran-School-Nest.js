@@ -1,4 +1,16 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Put, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
@@ -6,6 +18,19 @@ import { CurrentUser, CurrentUserPayload } from "../../common/decorators/current
 import { LogAction } from "../../common/decorators/log-action.decorator";
 import { CompetitionsService } from "./competitions.service";
 
+// ── Controller العام (بدون توكن) — لجلب نتيجة طالب بالرقم القومي ──────────
+@Controller("competitions/public")
+export class CompetitionsPublicController {
+  constructor(private readonly service: CompetitionsService) {}
+
+  @Get("result/:nationalId")
+  @HttpCode(HttpStatus.OK)
+  getResult(@Param("nationalId") nationalId: string) {
+    return this.service.getResultByNationalId(nationalId);
+  }
+}
+
+// ── Controller المحمي (يحتاج توكن admin/teacher) ──────────────────────────
 @Controller("competitions")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class CompetitionsController {
@@ -13,8 +38,8 @@ export class CompetitionsController {
 
   @Get()
   @Roles("admin")
-  findAll() {
-    return this.service.findAll();
+  findAll(@Query("type") type?: "external" | "internal") {
+    return this.service.findAll(type);
   }
 
   @Get(":id")
@@ -25,7 +50,7 @@ export class CompetitionsController {
 
   @Post()
   @Roles("admin")
-  @LogAction("إنشاء مسابقة جديدة")
+  @LogAction("إنشاء مسابقة/اختبار جديد")
   create(@Body() body: any) {
     return this.service.create(body);
   }
@@ -48,14 +73,29 @@ export class CompetitionsController {
   @Post(":id/participants")
   @Roles("admin", "teacher")
   @LogAction("إضافة مشارك لمسابقة")
-  addParticipant(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload, @Body("studentId") studentId: string) {
+  addParticipant(
+    @Param("id") id: string,
+    @CurrentUser() user: CurrentUserPayload,
+    @Body("studentId") studentId: string,
+  ) {
     return this.service.addParticipant(user, id, studentId);
+  }
+
+  @Post(":id/participants/bulk")
+  @Roles("admin")
+  @LogAction("إضافة مشاركين بالجملة لمسابقة")
+  bulkAdd(@Param("id") id: string, @Body() body: any) {
+    return this.service.bulkAddParticipants(id, body);
   }
 
   @Delete(":id/participants/:studentId")
   @Roles("admin", "teacher")
   @LogAction("حذف مشارك من مسابقة")
-  removeParticipant(@Param("id") id: string, @Param("studentId") studentId: string, @CurrentUser() user: CurrentUserPayload) {
+  removeParticipant(
+    @Param("id") id: string,
+    @Param("studentId") studentId: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
     return this.service.removeParticipant(user, id, studentId);
   }
 
